@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "qa": {
+    "application_id": "tv.mintv.app.qa",
+    "certificate_sha256": null
+  },
+  "stable": {
+    "application_id": "tv.mintv.app",
+    "certificate_sha256": null,
+    "installed_v01_certificate_sha256": null,
+    "installed_v01_version_code": null
+  }
+}
