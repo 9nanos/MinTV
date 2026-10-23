@@ -55,6 +55,17 @@ class TrackRecallTest {
         assertEquals(listOf("audio:2"), picks)
     }
 
+    @Test fun `a remembered subtitle language that arrives late is still selected`() {
+        val r = TrackRecall("k")
+        r.load(audio = null, sub = "sv")
+        r.applyTo(emptyList(), listOf(t(3, "en")))
+        assertEquals("not offered yet: nothing chosen", emptyList<String>(), picks)
+        r.applyTo(emptyList(), listOf(t(3, "en"), t(4, "sv")))
+        assertEquals(listOf("sub:4"), picks)
+        r.applyTo(emptyList(), listOf(t(3, "en"), t(4, "sv")))
+        assertEquals("applied once", listOf("sub:4"), picks)
+    }
+
     @Test fun `a track with no language is not stored`() {
         assertNull(TrackRecall("k").picked(isAudio = false, " "))
     }

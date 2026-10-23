@@ -1257,6 +1257,7 @@ class OwnTVPlayer(
         }.launchIn(scope)
         playbackSettings.field { it.preferredSubLang }.onEach { lang ->
             prefSubLang = lang
+            exoEngine?.prefSubLang = lang
             if (initialized) mpvAsync {
                 setPropertyString("slang", mpvLanguageList(lang))
                 setPropertyString("subs-with-matching-audio", if (lang.isBlank()) "no" else "yes")
@@ -2314,6 +2315,7 @@ class OwnTVPlayer(
             // decoder the same way it failed mpv's.
             preferSoftware = item.forceSoftwareThisLoad,
             isArchive = item.archiveThisItem,
+            subtitlesOff = trackRecall?.subtitle?.explicitlyOff == true,
         )
         // Re-apply the carried subtitle's remembered timing on the incoming engine.
         if (extSelect != null) onActiveSubtitleChanged?.invoke("path:${extSelect.path}")

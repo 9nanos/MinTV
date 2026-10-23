@@ -41,21 +41,21 @@ internal object TrackMemory {
 }
 
 /**
- * One load's remembered track languages, the same on both engines. Each half is applied once, when both
- * the answer from the database and that kind's track list are in — whichever arrives last does it. A pick
- * by the user closes that half too, so a database answer arriving after it cannot undo it.
+ * One load's remembered track languages, the same on both engines. Audio is applied once, when both the
+ * answer from the database and the audio track list are in. A remembered subtitle language that is not
+ * offered yet is retried as more tracks arrive (manifests can list languages late). A pick by the user
+ * closes that half, so a database answer arriving after it cannot undo it.
  */
 internal class TrackRecall(val key: String) {
     private var loaded = false
     private var audio: String? = null
-    private var sub: String? = null
+    private val subtitle = PendingSubtitleRecall()
     var audioDone = false
-    private var subDone = false
 
     /** The database answered (or the "original language" stood in for it). */
     fun load(audio: String?, sub: String?) {
         this.audio = audio
-        this.sub = sub
+        subtitle.load(sub)
         loaded = true
     }
 
@@ -73,13 +73,10 @@ internal class TrackRecall(val key: String) {
             audioDone = true
             TrackMemory.audioToSelect(audioTracks, audio)?.let { selectAudio(it.mpvId) }
         }
-        if (!subDone && subTracks.isNotEmpty()) {
-            subDone = true
-            when (val action = TrackMemory.subtitleAction(subTracks, sub, allowImage)) {
-                TrackMemory.SubtitleAction.None -> Unit
-                TrackMemory.SubtitleAction.Off -> subtitlesOff()
-                is TrackMemory.SubtitleAction.Select -> selectSubtitle(action.track.mpvId)
-            }
+        when (val action = subtitle.action(subTracks, allowImage)) {
+            TrackMemory.SubtitleAction.None -> Unit
+            TrackMemory.SubtitleAction.Off -> subtitlesOff()
+            is TrackMemory.SubtitleAction.Select -> selectSubtitle(action.track.mpvId)
         }
     }
 
@@ -88,9 +85,45 @@ internal class TrackRecall(val key: String) {
      * has none. A picked audio language is also what an engine switch later in this load re-applies.
      */
     fun picked(isAudio: Boolean, lang: String?): String? {
-        if (isAudio) audioDone = true else subDone = true
+        if (isAudio) audioDone = true else subtitle.manual(lang)
         if (lang.isNullOrBlank()) return null
         if (isAudio) audio = lang
         return lang
+    }
+}
+
+/** One item's pending remembered subtitle language. Owned by TrackRecall, never shared across loads/profiles. */
+internal class PendingSubtitleRecall {
+    var choice: String? = null
+        private set
+    var complete = false
+        private set
+    val explicitlyOff: Boolean get() = complete && choice == PlaybackPrefsStore.SUBTITLES_OFF
+
+    fun load(language: String?) {
+        if (!complete) choice = language
+    }
+
+    fun manual(language: String?) {
+        choice = language
+        complete = true
+    }
+
+    fun action(tracks: List<TrackOption>, allowImage: Boolean): TrackMemory.SubtitleAction {
+        if (complete) return TrackMemory.SubtitleAction.None
+        if (choice.isNullOrBlank()) {
+            complete = true
+            return TrackMemory.SubtitleAction.None
+        }
+        // Off must reach the engine even before the first subtitle track appears.
+        if (choice == PlaybackPrefsStore.SUBTITLES_OFF) {
+            complete = true
+            return TrackMemory.SubtitleAction.Off
+        }
+        val action = TrackMemory.subtitleAction(tracks, choice, allowImage)
+        complete = action is TrackMemory.SubtitleAction.Select || tracks.any {
+            it.selected && subtitleLanguageMatches(choice!!, it.lang)
+        }
+        return action
     }
 }
