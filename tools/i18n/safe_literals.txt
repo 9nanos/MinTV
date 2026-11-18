@@ -631,6 +631,19 @@
 1	sql	core/src/main/java/tv/own/owntv/core/database/Migration52To53.kt	ALTER TABLE `sources` ADD COLUMN `ignoreConnectionLimit` INTEGER NOT NULL DEFAULT 0
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/Migration52To53.kt	ignoreConnectionLimit
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/Migration52To53.kt	sources
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	ALTER TABLE `playback_prefs` DROP COLUMN `audioDelayMs`
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	AND `audioLang` IS NULL AND `subtitleLang` IS NULL
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	DELETE FROM `playback_prefs` WHERE `zoomMode` IS NULL AND `volumeBoost` IS NULL
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	INSERT OR IGNORE INTO `playback_quirks` (`contentKey`, `sourceId`, `mediaType`, `updatedAt`) VALUES (?, ?, ?, ?)
+1	protocol	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	LIVE
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	SELECT `contentKey`, `audioDelayMs`, `updatedAt` FROM `playback_prefs`
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	UPDATE `playback_prefs` SET `sourceId` = CAST(substr(`contentKey`, 1, instr(`contentKey`, ':') - 1) AS INTEGER)
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	UPDATE `playback_quirks` SET `audioDelayMs` = ?, `updatedAt` = ?
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	WHERE `audioDelayMs` IS NOT NULL ORDER BY `updatedAt` ASC
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	WHERE `contentKey` = ? AND (`audioDelayMs` IS NULL OR `updatedAt` <= ?)
+1	sql	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	WHERE `sourceId` = -1 AND `contentKey` GLOB '[0-9]*:*'
+1	room-schema	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	audioDelayMs
+1	room-schema	core/src/main/java/tv/own/owntv/core/database/Migration53To54.kt	playback_prefs
 18	sql	core/src/main/java/tv/own/owntv/core/database/OwnTVDatabase.kt	)
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/OwnTVDatabase.kt	,
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/OwnTVDatabase.kt	?
@@ -1409,15 +1422,13 @@
 2	sql	core/src/main/java/tv/own/owntv/core/database/dao/MovieDao.kt	titleSignature, parsedYear, providerLanguage, qualityRank, advertisedCapabilities FROM movies
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	AND audioLang IS NULL AND subtitleLang IS NULL
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	DELETE FROM playback_prefs WHERE sourceId = :sourceId
+1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	DELETE FROM playback_prefs WHERE zoomMode IS NULL AND volumeBoost IS NULL
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	SELECT * FROM playback_prefs
-1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	SELECT * FROM playback_prefs WHERE audioDelayMs IS NOT NULL ORDER BY updatedAt ASC
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	SELECT * FROM playback_prefs WHERE profileId = :profileId AND contentKey = :contentKey LIMIT 1
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	SELECT COUNT(*) FROM playback_prefs WHERE volumeBoost IS NOT NULL
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	SELECT COUNT(*) FROM playback_prefs WHERE zoomMode IS NOT NULL
-1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	UPDATE playback_prefs SET sourceId = CAST(substr(contentKey, 1, instr(contentKey, ':') - 1) AS INTEGER)
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	UPDATE playback_prefs SET volumeBoost = NULL
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	UPDATE playback_prefs SET zoomMode = NULL
-1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackPrefsDao.kt	WHERE sourceId = -1 AND contentKey GLOB '[0-9]*:*'
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackQuirkDao.kt	DELETE FROM playback_quirks WHERE enginePin IS NULL AND audioOnly IS NULL AND audioDelayMs IS NULL
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackQuirkDao.kt	DELETE FROM playback_quirks WHERE sourceId = :sourceId
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/PlaybackQuirkDao.kt	SELECT * FROM playback_quirks
@@ -2745,7 +2756,7 @@
 1	protocol	core/src/main/java/tv/own/owntv/core/player/ManifestType.kt	ism
 1	protocol	core/src/main/java/tv/own/owntv/core/player/ManifestType.kt	manifest_type
 1	protocol	core/src/main/java/tv/own/owntv/core/player/ManifestType.kt	mpd
-2	technical	core/src/main/java/tv/own/owntv/core/player/PlaybackPrefsStore.kt	LIVE
+1	technical	core/src/main/java/tv/own/owntv/core/player/PlaybackPrefsStore.kt	LIVE
 1	technical	core/src/main/java/tv/own/owntv/core/player/PlaybackPrefsStore.kt	off
 1	log	core/src/main/java/tv/own/owntv/core/player/PlaybackVisibility.kt	OwnTV-Visibility
 1	log	core/src/main/java/tv/own/owntv/core/player/PlaybackVisibility.kt	audio output back
@@ -6055,12 +6066,13 @@
 1	file-path	player-core/src/main/java/tv/own/owntv/player/LiveDiagnosticsLog.kt	diagnostics
 1	file-path	player-core/src/main/java/tv/own/owntv/player/LiveDiagnosticsLog.kt	live_diagnostics.log
 1	technical	player-core/src/main/java/tv/own/owntv/player/LiveDiagnosticsLog.kt	owntv-diag-log
+1	log	player-core/src/main/java/tv/own/owntv/player/LiveEngines.kt	$text: $detail
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	'$channelName' opened on ExoPlayer
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	'$channelName' still stalled, but its reconnect is receiving data — ${STALL_REFILL_GRACE_MS / 1000}s more to show a picture
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	'$channelName' stopped playing (state=$left) — ${STALL_HANDOFF_MS / 1000}s to recover
-1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer can't play this stream's content: ${engine.errorInfo.value?.raw ?: engine.error.value}
-1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer error before first frame: ${engine.errorInfo.value?.raw ?: engine.error.value}
-1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer gave up mid-stream: ${engine.errorInfo.value?.raw ?: engine.error.value}
+1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer can't play this stream's content
+1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer error before first frame
+1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer gave up mid-stream
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	ExoPlayer never opened it (${openBudgetMs / 1000}s, no frame and no error)
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	no decodable audio track
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveExoWatchdog.kt	no video frame rendered (audio plays, no picture)
@@ -6353,7 +6365,7 @@
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	engine: $message
 1	technical	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	exoplayer
 2	technical	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv
-1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv couldn't play it: ${outcome.error}
+1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv couldn't play it
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv handoff for '${channel.name}' abandoned — the channel changed while ExoPlayer released
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv lost it after playing: $failure
 1	log	player-core/src/main/java/tv/own/owntv/player/LiveTuneController.kt	mpv never opened it (${MPV_OPEN_TIMEOUT_MS / 1000}s, no picture and no error)
@@ -6729,6 +6741,7 @@
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	reconnect_at_eof=1,reconnect_on_http_error=[5xx,458],reconnect_max_retries=3
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	redirect
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	relative
+1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	release wait done in ${android.os.SystemClock.elapsedRealtime() - startedAt}ms released=$released
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	replacement loadfile
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	rgba8
 2	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	s16

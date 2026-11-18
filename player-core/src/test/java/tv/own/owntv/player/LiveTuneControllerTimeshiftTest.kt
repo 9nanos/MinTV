@@ -90,13 +90,13 @@ class LiveTuneControllerTimeshiftTest {
         override suspend fun watchExo(
             channelName: String,
             stillOurs: () -> Boolean,
-            handOver: suspend (String) -> Unit,
+            handOver: suspend (HandOver) -> Unit,
             onOpened: () -> Unit,
             postponeDeadline: (Long) -> Unit,
             log: (String) -> Unit,
         ) {
             val reason = CompletableDeferred<String?>().also { exoWatch = it }.await()
-            if (reason == null) onOpened() else if (stillOurs()) handOver(reason)
+            if (reason == null) onOpened() else if (stillOurs()) handOver(HandOver(reason))
         }
         override fun mpvPlay(url: String, request: LiveRequest) { mpvHasStream = true; log += "mpv:$url" }
         override fun mpvStop() { mpvHasStream = false }

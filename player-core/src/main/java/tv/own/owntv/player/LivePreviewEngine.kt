@@ -117,12 +117,12 @@ class LivePreviewEngine(
         memoryPressure = true
         LiveDiagnosticsLog.event("critical memory pressure — next tune rebuilds with the low-RAM buffer")
     }
-    /** The pre-roll this tune should use — zero for a stream already caught unable to satisfy one
-     *  ([LiveStreamQuirks.defeatsPreroll]), otherwise the per-playlist override or the global setting. */
     /** The live-edge depth this tune should use: the playlist's override if it set one, else the global
      *  Live latency setting. Null either way means Balanced — engine defaults, no target offset. */
     private fun effectiveLiveBufferSecs(): Int? = liveBufferOverride?.secs ?: liveBufferSecs
 
+    /** The pre-roll this tune should use — zero for a stream already caught unable to satisfy one
+     *  ([LiveStreamQuirks.defeatsPreroll]), otherwise the per-playlist override or the global setting. */
     private fun effectivePrerollSecs(): Int {
         val chosen = prerollOverrideSecs ?: livePrerollSecs
         if (chosen <= 0) return chosen
@@ -532,8 +532,8 @@ class LivePreviewEngine(
         }
     }
 
-    /** The HTTP status behind a load failure, following the cause chain Media3 wraps it in. */
-    /** The HTTP status behind a load failure — shared with the other ExoPlayer engines. */
+    /** The HTTP status behind a load failure, following the cause chain Media3 wraps it in — shared
+     *  with the other ExoPlayer engines. */
     private fun httpStatusOf(error: Throwable?): Int? = PlayerErrors.httpStatusOf(error)
 
     /** Semantic media details for the playback error renderer. */
@@ -1588,9 +1588,6 @@ class LivePreviewEngine(
         setSurface(null)
     }
 
-    /** Start (or switch to) [url] as a muted/unmuted preview. Never throws — a stream ExoPlayer can't set
-     *  up just falls back to the channel logo (the full mpv player can still play it). [meta] populates the
-     *  full-screen HUD title when this preview is promoted. [userAgent] is the per-source custom UA. */
     /** Bumped whenever the video output surface must be thrown away and rebuilt; [ExoPreviewSurface]
      *  keys its SurfaceView on this, so a new value means a brand-new [Surface]. */
     private val _surfaceGeneration = MutableStateFlow(0)
@@ -1633,8 +1630,11 @@ class LivePreviewEngine(
         recreateSurface()
     }
 
-    /** [prerollSecsOverride] = the tuned channel's playlist "Pre-buffer" override in
-     *  seconds; null follows the global setting. */
+    /** Start (or switch to) [url] as a muted/unmuted preview. Never throws — a stream ExoPlayer can't set
+     *  up just falls back to the channel logo (the full mpv player can still play it). [meta] populates the
+     *  full-screen HUD title when this preview is promoted. [userAgent] is the per-source custom UA.
+     *  [prerollSecsOverride] = the tuned channel's playlist "Pre-buffer" override in seconds; null follows
+     *  the global setting. */
     fun play(
         url: String,
         muted: Boolean,
@@ -2314,21 +2314,9 @@ class LivePreviewEngine(
         val p = player ?: return
         val url = currentUrl ?: return
         tune.sessionLimitRetryDone = true
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("waiting ${SESSION_RELEASE_MS}ms for the provider to free the account session, then retrying")
-        val forTune = tune
-        mainHandler.postDelayed({
-            if (tune !== forTune || currentUrl != url) return@postDelayed
-            runCatching {
-                reprepare(p, url)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                _error.value = PlaybackFailure.Channel
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(it.message.orEmpty()), exoSpec(), it.message)
-            }
-        }, SESSION_RELEASE_MS)
+        reopenLater(p, url, messageUrl = null, delayMs = SESSION_RELEASE_MS)
     }
 
     /**
@@ -2407,14 +2395,7 @@ class LivePreviewEngine(
         val p = player ?: return
         val url = currentUrl ?: return
         LiveDiagnosticsLog.event("provider back-off elapsed — retrying the same URL on the same engine")
-        runCatching {
-            reprepare(p, url)
-        }.onFailure {
-            _state.value = State.ERROR
-            _buffering.value = false
-            _error.value = PlaybackFailure.Channel
-            _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(it.message.orEmpty()), exoSpec(), it.message)
-        }
+        reopen(p, url, messageUrl = null)
     }
 
     /** Drop a pending provider wait — a new tune, a stop, a release or the user zapping away supersedes it. */
@@ -2517,22 +2498,10 @@ class LivePreviewEngine(
         tune.responseWasHls = false
         tune.forceDashForCurrentLoad = false
         tune.responseWasDash = false
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("stream didn't open — trying the ${alt.substringBefore('?').substringAfterLast('.')} form of this channel")
         android.util.Log.w(LiveDiagnosticsLog.TAG, "trying alternate format: ${HttpClient.redactUrl(alt)}")
-        mainHandler.post {
-            if (currentUrl != alt) return@post
-            runCatching {
-                reprepare(p, alt)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, alt, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
-        }
+        reopenLater(p, alt)
     }
 
     /**
@@ -2549,22 +2518,10 @@ class LivePreviewEngine(
         tune.uaRetryDone = true
         currentUa = HttpClient.FALLBACK_USER_AGENT
         LiveStreamQuirks.rememberBlocksDefaultUserAgent(url)
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("provider refused the default User-Agent — retrying as ${HttpClient.FALLBACK_USER_AGENT}")
         android.util.Log.w(LiveDiagnosticsLog.TAG, "default User-Agent refused — retrying once as ${HttpClient.FALLBACK_USER_AGENT}")
-        mainHandler.post {
-            if (currentUrl != url) return@post
-            runCatching {
-                reprepare(p, url)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, url, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
-        }
+        reopenLater(p, url)
     }
 
     /**
@@ -2577,21 +2534,9 @@ class LivePreviewEngine(
         val url = currentUrl ?: return
         tune.hlsFromHostLesson = false
         tune.hlsLessonIgnored = true
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("learned HLS route could not parse this channel — retrying it as TS")
-        mainHandler.post {
-            if (currentUrl != url) return@post
-            runCatching {
-                reprepare(p, url)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, url, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
-        }
+        reopenLater(p, url)
     }
 
     private fun retryRedirectedStreamAsHls() {
@@ -2602,21 +2547,9 @@ class LivePreviewEngine(
         // Panel-wide lesson, not a per-channel one: every other channel here — and mpv, if we hand over —
         // now starts as HLS instead of repeating this failure.
         LiveStreamQuirks.rememberHlsRedirect(url)
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("redirected .ts response is HLS — retrying with HlsMediaSource")
-        mainHandler.post {
-            if (currentUrl != url) return@post
-            runCatching {
-                reprepare(p, url)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, url, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
-        }
+        reopenLater(p, url)
     }
 
     /**
@@ -2637,22 +2570,10 @@ class LivePreviewEngine(
         tune.responseWasHls = false
         tune.forceDashForCurrentLoad = false
         tune.responseWasDash = false
-        _state.value = State.LOADING; _buffering.value = true
-        _error.value = null; _errorInfo.value = null
+        showReopening()
         LiveDiagnosticsLog.event("every rung spent — retrying at the panel's direct_source address")
         android.util.Log.w(LiveDiagnosticsLog.TAG, "trying direct_source: ${HttpClient.redactUrl(target)}")
-        mainHandler.post {
-            if (currentUrl != target) return@post
-            runCatching {
-                reprepare(p, target)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, previous, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
-        }
+        reopenLater(p, target, messageUrl = previous)
     }
 
     /**
@@ -2671,20 +2592,44 @@ class LivePreviewEngine(
         tune.forceDashForCurrentLoad = true
         // Panel-wide lesson, not a per-channel one — same reasoning as the HLS rung above.
         LiveStreamQuirks.rememberDashRedirect(url)
+        showReopening()
+        LiveDiagnosticsLog.event("response is a DASH manifest — retrying with DashMediaSource")
+        reopenLater(p, url)
+    }
+
+    /** A retry is under way: spinner up, the failure it answers cleared. */
+    private fun showReopening() {
         _state.value = State.LOADING; _buffering.value = true
         _error.value = null; _errorInfo.value = null
-        LiveDiagnosticsLog.event("response is a DASH manifest — retrying with DashMediaSource")
-        mainHandler.post {
-            if (currentUrl != url) return@post
-            runCatching {
-                reprepare(p, url)
-            }.onFailure {
-                _state.value = State.ERROR
-                _buffering.value = false
-                val raw = it.message.orEmpty()
-                _error.value = PlayerErrors.visibleFailure(raw, url, PlaybackFailure.Channel)
-                _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
-            }
+    }
+
+    /**
+     * Open [url] again on [p] after [delayMs] (otherwise on the next turn of the main loop), unless a newer
+     * tune, even of the same address, or another address took over meanwhile: the one guard every retry
+     * needs.
+     */
+    private fun reopenLater(p: ExoPlayer, url: String, messageUrl: String? = url, delayMs: Long = 0L) {
+        val forTune = tune
+        mainHandler.postDelayed({
+            if (tune !== forTune || currentUrl != url) return@postDelayed
+            reopen(p, url, messageUrl)
+        }, delayMs)
+    }
+
+    /**
+     * Prepare [url] on [p] again. When that throws, it is the engine's error: the provider's own words
+     * for [messageUrl] when it gave some, otherwise the plain "couldn't play this channel".
+     */
+    private fun reopen(p: ExoPlayer, url: String, messageUrl: String?) {
+        runCatching {
+            reprepare(p, url)
+        }.onFailure {
+            _state.value = State.ERROR
+            _buffering.value = false
+            val raw = it.message.orEmpty()
+            _error.value = messageUrl?.let { u -> PlayerErrors.visibleFailure(raw, u, PlaybackFailure.Channel) }
+                ?: PlaybackFailure.Channel
+            _errorInfo.value = ErrorInfo(PlayerErrors.reasonFor(raw), exoSpec(), it.message)
         }
     }
 
@@ -2932,14 +2877,6 @@ class LivePreviewEngine(
     // OwnTVPlayer: each half applied once per tune, when the database answer and that track list are
     // both in; a pick by the user closes that half and is remembered by its language.
 
-    private class TrackRecall(val key: String) {
-        var loaded = false
-        var audio: String? = null
-        var sub: String? = null
-        var audioDone = false
-        var subDone = false
-    }
-
     private var trackRecall: TrackRecall? = null
 
     private fun recallTracks(key: String) {
@@ -2948,37 +2885,28 @@ class LivePreviewEngine(
         scope.launch {
             val remembered = playbackPrefs.tracksFor(key)
             if (trackRecall !== recall) return@launch
-            recall.audio = remembered?.first
-            recall.sub = remembered?.second
-            recall.loaded = true
+            recall.load(audio = remembered?.first, sub = remembered?.second)
             applyRememberedTracks()
         }
     }
 
     private fun applyRememberedTracks() {
-        val recall = trackRecall ?: return
-        if (!recall.loaded) return
-        if (!recall.audioDone && tune.audioTrackList.isNotEmpty()) {
-            recall.audioDone = true
-            TrackMemory.audioToSelect(tune.audioTrackList, recall.audio)?.let { applyAudioTrack(it.mpvId) }
-        }
-        if (!recall.subDone && tune.textTrackList.isNotEmpty()) {
-            recall.subDone = true
-            when (val action = TrackMemory.subtitleAction(tune.textTrackList, recall.sub, allowImage = true)) {
-                TrackMemory.SubtitleAction.None -> Unit
-                TrackMemory.SubtitleAction.Off -> applySubtitlesOff()
-                is TrackMemory.SubtitleAction.Select -> applySubtitleTrack(action.track.mpvId)
-            }
-        }
+        trackRecall?.apply(
+            audioTracks = tune.audioTrackList,
+            subTracks = tune.textTrackList,
+            allowImage = true,
+            selectAudio = ::applyAudioTrack,
+            subtitlesOff = ::applySubtitlesOff,
+            selectSubtitle = ::applySubtitleTrack,
+        )
     }
 
     private fun rememberTrack(audio: Boolean, lang: String?) {
         val recall = trackRecall ?: return
-        if (audio) recall.audioDone = true else recall.subDone = true
-        if (lang.isNullOrBlank()) return
+        val picked = recall.picked(isAudio = audio, lang) ?: return
         val key = recall.key
         scope.launch {
-            if (audio) playbackPrefs.rememberAudioLang(key, lang) else playbackPrefs.rememberSubtitleLang(key, lang)
+            if (audio) playbackPrefs.rememberAudioLang(key, picked) else playbackPrefs.rememberSubtitleLang(key, picked)
         }
     }
 

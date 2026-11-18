@@ -18,6 +18,22 @@ data class LiveRequest(
     val directSource: String?,
 )
 
+/**
+ * Why a live engine let a channel go. [text] is for the log only; the ladder reads [httpStatus], so a
+ * reworded sentence cannot change what it learns.
+ */
+data class HandOver(val text: String, val httpStatus: Int? = null) {
+    /** The panel refused the *request* (busy, forbidden, rate-limited): nothing about the format. */
+    val refused: Boolean get() = httpStatus?.let { LiveStreamQuirks.isRequestRefusal(it) } == true
+
+    companion object {
+        /** A failure the engine reported; [detail] is the engine's own error text, which may name the
+         *  provider's HTTP status. Only [detail] is read for it, never the sentence around it. */
+        fun engineError(text: String, detail: String?): HandOver =
+            HandOver("$text: $detail", detail?.let { PlayerErrors.httpStatusIn(it) })
+    }
+}
+
 /** What mpv did with a channel it was just given: playback started, or an error. */
 data class MpvOutcome(val opened: Boolean, val error: String?)
 
@@ -61,7 +77,7 @@ interface LiveEngines {
     suspend fun watchExo(
         channelName: String,
         stillOurs: () -> Boolean,
-        handOver: suspend (String) -> Unit,
+        handOver: suspend (HandOver) -> Unit,
         onOpened: () -> Unit,
         postponeDeadline: (Long) -> Unit,
         log: (String) -> Unit,
@@ -127,7 +143,7 @@ class EnginePair(private val exo: LivePreviewEngine, private val mpv: OwnTVPlaye
     override suspend fun watchExo(
         channelName: String,
         stillOurs: () -> Boolean,
-        handOver: suspend (String) -> Unit,
+        handOver: suspend (HandOver) -> Unit,
         onOpened: () -> Unit,
         postponeDeadline: (Long) -> Unit,
         log: (String) -> Unit,

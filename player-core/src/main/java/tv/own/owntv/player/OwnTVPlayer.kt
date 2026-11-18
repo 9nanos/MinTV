@@ -392,6 +392,17 @@ class OwnTVPlayer(
         }
 
         /**
+         * The 4xx status in mpv's error line, or null when it doesn't carry one.
+         *
+         * Deliberately narrower than [PlayerErrors.httpStatusIn], which reads any 3-digit status out of
+         * any error text: everything downstream of here decides whether to *repeat a request*, and only
+         * a 4xx tells us the server refused this specific ask. Widening it would silently reclassify
+         * 5xx as a refusal, so the two parsers stay separate on purpose.
+         */
+        internal fun httpStatusOf(mpvError: String?): Int? =
+            HTTP_REFUSAL_RX.find(mpvError ?: return null)?.groupValues?.get(1)?.toIntOrNull()
+
+        /**
          * Classify mpv's last error, when it is the server refusing with an HTTP status rather than a
          * network/decoder problem.
          *
@@ -406,17 +417,6 @@ class OwnTVPlayer(
          * `Retry-After`; the ladder sees only mpv's status line, so its own back-off is what spaces the
          * repeats here.)
          */
-        /**
-         * The 4xx status in mpv's error line, or null when it doesn't carry one.
-         *
-         * Deliberately narrower than [PlayerErrors.httpStatusIn], which reads any 3-digit status out of
-         * any error text: everything downstream of here decides whether to *repeat a request*, and only
-         * a 4xx tells us the server refused this specific ask. Widening it would silently reclassify
-         * 5xx as a refusal, so the two parsers stay separate on purpose.
-         */
-        internal fun httpStatusOf(mpvError: String?): Int? =
-            HTTP_REFUSAL_RX.find(mpvError ?: return null)?.groupValues?.get(1)?.toIntOrNull()
-
         internal fun httpRefusalKind(mpvError: String?): HttpRefusal {
             val code = httpStatusOf(mpvError) ?: return HttpRefusal.NONE
             return when {
@@ -747,7 +747,8 @@ class OwnTVPlayer(
 
     // Vsync-aligned presentation was TRIED for live and does not work on this VO — do not re-attempt it
     // via mpv options. Measured 2026-07-27 on a 30.000002Hz panel, 4K live, vo=mediacodec_embed:
-    //   - default (video-sync=desync): mpv presents with no vsync alignment. The TV's own pipeline logged
+    //   - default at the time (video-sync=desync; the direct path now runs `audio`, see MpvLoadOptions):
+    //     mpv presents with no vsync alignment. The TV's own pipeline logged
     //     ~94 mistimed frames/min (W/VideoClient "vSyncDiff"), average interval 33668µs vs the correct
     //     33333µs. That is the mild judder users see; decode is clean (frame-drops=0, decoder-drops=0).
     //   - feeding mpv the panel rate (display-fps-override, accepted: display-fps read back 30.000002)
@@ -2493,7 +2494,6 @@ class OwnTVPlayer(
         else if (_position.value > 0) _position.value
         else load.pendingSeekMs
 
-    /** The engine fallback ALSO failed: stop ExoPlayer and surface one combined error. */
     /** "Only ExoPlayer" and ExoPlayer gave up: mpv is not allowed a turn, so this is the final word.
      *  Reported as ExoPlayer's own error — telling the user both engines failed would be a lie, and it
      *  would hide the fact that the engine setting is what stopped the second attempt. */
@@ -2505,6 +2505,7 @@ class OwnTVPlayer(
         _error.value = exoError
     }
 
+    /** The engine fallback ALSO failed: stop ExoPlayer and surface one combined error. */
     private fun failBothEngines(exoError: PlaybackFailure) {
         android.util.Log.w(TAG, "VOD failed on BOTH engines — mpv: '$mpvFailureBeforeFallback' / exo: '$exoError'")
         deactivateExo()
@@ -3870,16 +3871,6 @@ class OwnTVPlayer(
 
     // --- Remembered audio / subtitle language (playback_prefs, v44) ---
 
-    /** One load's remembered track languages. Each half is applied once, when both the answer from the
-     *  database and that kind's track list are in — whichever arrives last does it. */
-    private class TrackRecall(val key: String) {
-        var loaded = false
-        var audio: String? = null
-        var sub: String? = null
-        var audioDone = false
-        var subDone = false
-    }
-
     @Volatile private var trackRecall: TrackRecall? = null
 
     private fun recallTracks(key: String) {
@@ -3893,52 +3884,35 @@ class OwnTVPlayer(
                 withTimeoutOrNull(ORIGINAL_LANGUAGE_WAIT_MS) { runCatching { originalLanguage.of(key) }.getOrNull() }
             } else null
             if (trackRecall !== recall) return@launch // a newer load started while we were reading
-            recall.audio = remembered?.first ?: original
-            recall.sub = remembered?.second
-            recall.loaded = true
+            recall.load(audio = remembered?.first ?: original, sub = remembered?.second)
             applyRememberedTracks()
         }
     }
 
     /** Main thread only (ExoPlayer requires it); the mpv event thread reaches it through [scope]. */
     private fun applyRememberedTracks() {
-        val recall = trackRecall ?: return
-        if (!recall.loaded) return
-        val audio = _audioTrackList.value
-        if (!recall.audioDone && audio.isNotEmpty()) {
-            recall.audioDone = true
-            TrackMemory.audioToSelect(audio, recall.audio)?.let { applyAudioTrack(it.mpvId) }
-        }
-        val subs = _subTrackList.value
-        if (!recall.subDone && subs.isNotEmpty()) {
-            recall.subDone = true
+        trackRecall?.apply(
+            audioTracks = _audioTrackList.value,
+            subTracks = _subTrackList.value,
             // A bitmap subtitle is only chosen where ExoPlayer already owns the item; on mpv it would
             // cost a handoff (VOD) or cannot be drawn at all (live).
-            when (val action = TrackMemory.subtitleAction(subs, recall.sub, allowImage = exoActive && item.exoVodFallback)) {
-                TrackMemory.SubtitleAction.None -> Unit
-                TrackMemory.SubtitleAction.Off -> applySubtitlesOff()
-                is TrackMemory.SubtitleAction.Select -> applySubtitleTrack(action.track.mpvId)
-            }
-        }
+            allowImage = exoActive && item.exoVodFallback,
+            selectAudio = ::applyAudioTrack,
+            subtitlesOff = ::applySubtitlesOff,
+            selectSubtitle = ::applySubtitleTrack,
+        )
     }
 
-    // A pick by the user closes that half of the recall too, so a database answer arriving after it
-    // cannot undo it.
     private fun rememberAudioLang(lang: String?) {
         val recall = trackRecall ?: return
-        recall.audioDone = true
-        val key = recall.key
-        if (lang.isNullOrBlank()) return
-        recall.audio = lang // what an engine switch later in this load re-applies
-        scope.launch { playbackPrefs.rememberAudioLang(key, lang) }
+        val picked = recall.picked(isAudio = true, lang) ?: return
+        scope.launch { playbackPrefs.rememberAudioLang(recall.key, picked) }
     }
 
     private fun rememberSubtitleLang(lang: String?) {
         val recall = trackRecall ?: return
-        recall.subDone = true
-        val key = recall.key
-        if (lang.isNullOrBlank()) return
-        scope.launch { playbackPrefs.rememberSubtitleLang(key, lang) }
+        val picked = recall.picked(isAudio = false, lang) ?: return
+        scope.launch { playbackPrefs.rememberSubtitleLang(recall.key, picked) }
     }
 
     /** Deliberate zoom choice from the HUD — applied now and remembered for this item. */
@@ -4133,7 +4107,12 @@ class OwnTVPlayer(
         val stopped = CountDownLatch(1)
         val queued = runCatching { mpvExecutor.execute { stopped.countDown() } }.isSuccess
         if (!queued) return true // executor gone: nothing is holding a stream either
-        return withContext(Dispatchers.IO) { stopped.await(timeoutMs, TimeUnit.MILLISECONDS) }
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        val released = withContext(Dispatchers.IO) { stopped.await(timeoutMs, TimeUnit.MILLISECONDS) }
+        // Beside the END_FILE line's own timestamp, this shows whether the provider's connection can
+        // outlive the stop command on a one-session panel.
+        android.util.Log.i(TAG, "release wait done in ${android.os.SystemClock.elapsedRealtime() - startedAt}ms released=$released")
+        return released
     }
 
     /**

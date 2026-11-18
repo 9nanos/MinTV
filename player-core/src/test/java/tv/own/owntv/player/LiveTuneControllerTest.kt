@@ -56,15 +56,15 @@ class LiveTuneControllerTest {
         override suspend fun watchExo(
             channelName: String,
             stillOurs: () -> Boolean,
-            handOver: suspend (String) -> Unit,
+            handOver: suspend (HandOver) -> Unit,
             onOpened: () -> Unit,
             postponeDeadline: (Long) -> Unit,
             log: (String) -> Unit,
         ) {
             val d = CompletableDeferred<String?>().also { exoWatch = it }
             val reason = d.await()
-            if (reason == null) onOpened() else if (stillOurs()) handOver(reason)
-            if (reason == null) exoLaterFailure?.let { val r = it.await(); if (stillOurs()) handOver(r) }
+            if (reason == null) onOpened() else if (stillOurs()) handOver(HandOver(reason))
+            if (reason == null) exoLaterFailure?.let { val r = it.await(); if (stillOurs()) handOver(HandOver(r)) }
         }
 
         override fun mpvPlay(url: String, request: LiveRequest) {

@@ -243,7 +243,7 @@ class LiveTuneController(
             // preview's error on screen for ~1 s while the ladder moved on to mpv: go there directly.
             previewedChannelId == channel.id && engines.exoFailed -> {
                 engineLog("'${channel.name}' — its ExoPlayer preview had already failed; trying the next engine")
-                advance(channel, source, "the ExoPlayer preview had already failed", token, aboutFormat = false)
+                advance(channel, source, HandOver("the ExoPlayer preview had already failed"), token, aboutFormat = false)
             }
             else -> startOnExo(channel, source, token, resolved)
         }
@@ -843,7 +843,7 @@ class LiveTuneController(
             val outcome = engines.awaitMpvOutcome(MPV_OPEN_TIMEOUT_MS)
             if (!isStillMpv(token)) return@launch
             val reason = when {
-                outcome == null -> "mpv never opened it (${MPV_OPEN_TIMEOUT_MS / 1000}s, no picture and no error)"
+                outcome == null -> HandOver("mpv never opened it (${MPV_OPEN_TIMEOUT_MS / 1000}s, no picture and no error)")
                 outcome.opened -> {
                     engineLog("'${channel.name}' opened on mpv")
                     standDownAlarm()
@@ -852,10 +852,10 @@ class LiveTuneController(
                     mpvHandedBack = true
                     ladder.restartDeadline(host.nowMs(), armedBudgetMs)
                     // Not about the format: the stream played, so the other engine goes first.
-                    advance(channel, source, "mpv lost it after playing: $failure", token, aboutFormat = false)
+                    advance(channel, source, HandOver("mpv lost it after playing: $failure"), token, aboutFormat = false)
                     return@launch
                 }
-                else -> "mpv couldn't play it: ${outcome.error}"
+                else -> HandOver.engineError("mpv couldn't play it", outcome.error)
             }
             advance(channel, source, reason, token)
         }
@@ -925,11 +925,12 @@ class LiveTuneController(
     private suspend fun advance(
         channel: ChannelEntity,
         source: SourceEntity?,
-        reason: String,
+        handOver: HandOver,
         token: Int,
         /** Whether the failure says anything about the stream's format; by default, unless it was a refusal. */
-        aboutFormat: Boolean = !isRequestRefusal(reason),
+        aboutFormat: Boolean = !handOver.refused,
     ) {
+        val reason = handOver.text
         if (!isCurrent(token) || !ladder.owns(channel.streamUrl)) return // a newer tune owns the ladder now
         val nowMs = host.nowMs()
         // ExoPlayer played this channel, then found its content unplayable (not a connection problem).
@@ -1032,9 +1033,6 @@ class LiveTuneController(
 
     private fun panelCertificateUntrusted(channel: ChannelEntity, source: SourceEntity?): Boolean =
         !host.needsResolve(source) && LiveStreamQuirks.distrustsCertificate(channel.playStreamUrl(source))
-
-    private fun isRequestRefusal(reason: String): Boolean =
-        PlayerErrors.httpStatusIn(reason)?.let { LiveStreamQuirks.isRequestRefusal(it) } == true
 
     /**
      * Install the Stalker reconnect link on both engines while a Stalker channel plays, so a mid-session
@@ -1163,6 +1161,9 @@ class LiveTuneController(
         /**
          * How long mpv gets to produce a picture before the ladder moves on. Looser than ExoPlayer's:
          * mpv walks its own internal retry and format ladder first.
+         *
+         * With the default "Give up after" (30 s) the tune's alarm ends a silent mpv open before this
+         * does. This bound is the one that acts when the budget is off or set above 35 s.
          */
         const val MPV_OPEN_TIMEOUT_MS = 35_000L
 

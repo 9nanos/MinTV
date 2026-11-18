@@ -11,6 +11,8 @@
 
 ## core-1.0.72 — unreleased
 
+**Database v54**
+
 ### 🐛 Fixes
 
 - **⏪ Timeshift: leaving a channel while it is still opening no longer leaves its download running**
