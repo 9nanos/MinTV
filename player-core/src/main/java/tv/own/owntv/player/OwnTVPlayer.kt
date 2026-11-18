@@ -208,6 +208,14 @@ class OwnTVPlayer(
     companion object {
         const val TAG = "OwnTVPlayer"
 
+        /**
+         * Whether the network coming back should reconnect what mpv holds: a live channel that played and
+         * is parked on a connection error. A film keeps its own resume; a channel that never opened, or
+         * failed for another reason, gains nothing from the network.
+         */
+        internal fun resumesOnNetworkBack(isLive: Boolean, hadPlayed: Boolean, error: PlaybackFailure?): Boolean =
+            isLive && hadPlayed && (error == PlaybackFailure.NoInternet || error == PlaybackFailure.LostConnection)
+
         /** mpv's end-of-file reason as a log word; -1 = the library did not say. */
         internal fun endFileReasonName(reason: Int): String = when (reason) {
             MPVLib.MpvEndFileReason.EOF -> "eof"
@@ -1149,6 +1157,9 @@ class OwnTVPlayer(
                 else if (initialized) mpvAsync { applyMpvVideoQuality() }
             }
             .launchIn(scope)
+        // A live channel parked on "No internet" or "Lost connection" comes back by itself when the
+        // network does, as it does on ExoPlayer — it used to wait for Retry.
+        connectivity.isOnline.onEach { online -> if (online) resumeLiveOnNetworkBack() }.launchIn(scope)
         // Night mode and levelling on mpv — live, on the file playing now (the filter chain is rebuilt in place).
         playbackSettings.field { AudioDynamics.mpvFilter(it.nightMode, it.volumeLevelling) }.onEach { af ->
             mpvAudioFilter = af
@@ -4072,6 +4083,22 @@ class OwnTVPlayer(
 
     /** The channel [abandonLive] gave up on, for [retry]; cleared by the next load. */
     private var abandonedLiveUrl: String? = null
+
+    /**
+     * The network is back: reconnect a live channel that had played and was parked on a connection error,
+     * with a fresh reconnect budget. Something the user stopped, or the ladder gave up on, holds no URL
+     * any more ([stop] clears it), so it is never restarted behind their back.
+     */
+    private fun resumeLiveOnNetworkBack() {
+        val url = currentUrl ?: return
+        if (!resumesOnNetworkBack(isLiveContent, _playbackStarted.value, _error.value)) return
+        android.util.Log.i(TAG, "network back — reconnecting the live channel parked on ${_error.value}")
+        LiveDiagnosticsLog.event("mpv live: network back — reconnecting")
+        item.liveStallReconnects = 0
+        _error.value = null
+        _buffering.value = true
+        reloadLive(url, resetRetries = false)
+    }
 
     /** True while mpv owns a stream (loaded or loading) — i.e. while it may still hold a provider session. */
     val hasActiveStream: Boolean get() = currentUrl != null || pendingUrl != null

@@ -1419,6 +1419,13 @@ class LivePreviewEngine(
                 return
             }
             if (tune.hasPlayed && !tune.reconnectPending && !tune.gaveUp) {
+                // The panel still counts the connection the drop killed: asking again quickly only spends the
+                // budget. Measured on a phone after a 30 s network cut: all eight reconnects answered `460` in
+                // 30 s, while the panel let go about a minute later. Waited out, bounded by the give-up time.
+                if (httpStatusOf(error)?.let { LiveStreamQuirks.isSessionLimit(it) } == true) {
+                    reconnect("error ${error.errorCodeName} (session still in use)", sessionBusy = true)
+                    return
+                }
                 val hlsHttpFailure = activeIsHls && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
                 // The network is back, but the segments it was waiting for have left the playlist (a long
                 // HLS outage). Nothing to wait for: rejoin the live edge now.
@@ -1427,6 +1434,9 @@ class LivePreviewEngine(
                 return
             }
             if (tune.hasPlayed) return
+            // The platform refused this panel's certificate; mpv does not check it and plays the panel.
+            // This tune still climbs its ladder; the panel's later tunes start on mpv.
+            if (LiveStreamQuirks.isUntrustedCertificate(error)) currentUrl?.let { LiveStreamQuirks.rememberUntrustedCertificate(it) }
             val http = httpStatusOf(error)
             val rungInput = LiveStartRungs.Input(
                 containerUnsupported = error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
@@ -2066,7 +2076,13 @@ class LivePreviewEngine(
      *  For an expiring-URL source (Stalker) the reconnect must NOT replay the now-dead
      *  resolved URL — a [reconnectUrlProvider] mints a fresh one first (null/absent → replay as-is,
      *  which is correct for M3U/Xtream and direct-URL Stalker portals). */
-    private fun reconnect(reason: String, fastHlsHttpRecovery: Boolean = false, immediate: Boolean = false) {
+    private fun reconnect(
+        reason: String,
+        fastHlsHttpRecovery: Boolean = false,
+        immediate: Boolean = false,
+        /** The panel refused for a session still in use: a fixed wait, not counted as an attempt. */
+        sessionBusy: Boolean = false,
+    ) {
         mainHandler.removeCallbacks(stallWatchdog); mainHandler.removeCallbacks(progressWatchdog); mainHandler.removeCallbacks(fpsFastRefresh)
         mainHandler.removeCallbacks(openWatchdog)
         mainHandler.removeCallbacks(healthyReset) // this attempt is a failure, not a recovery
@@ -2088,7 +2104,7 @@ class LivePreviewEngine(
             return
         }
         if (tune.failingSinceMs == 0L) tune.failingSinceMs = nowMs // a fresh run, or the picture came back since
-        tune.retryCount++
+        if (!sessionBusy) tune.retryCount++
         tune.reconnectPending = true
         _error.value = null; _errorInfo.value = null; _state.value = State.LOADING; _buffering.value = true
         LiveDiagnosticsLog.event("reconnect attempt ${tune.retryCount}/$MAX_RECONNECTS reason=$reason")
@@ -2098,6 +2114,7 @@ class LivePreviewEngine(
         // forever without ever reaching the honest "Lost connection" end state.
         val delayMs = when {
             immediate -> 0L
+            sessionBusy -> SESSION_BUSY_RETRY_MS
             fastHlsHttpRecovery -> hlsHttpReconnectDelayMs(tune.retryCount)
             else -> reconnectDelayMs(tune.retryCount)
         }
@@ -2183,8 +2200,10 @@ class LivePreviewEngine(
         }
     }
 
+    // A "session still in use" answer is not the network coming back: it would cut the wait short.
     private fun isAnswerAfterOutage(error: PlaybackException): Boolean =
-        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+        (error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS &&
+            httpStatusOf(error)?.let { LiveStreamQuirks.isSessionLimit(it) } != true) ||
             error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
 
     /** The scheduled reload of a pending [reconnect], so an answer from the server can bring it forward. */
@@ -3597,6 +3616,8 @@ class LivePreviewEngine(
          * true however slowly the attempts fail.
          */
         private const val RECONNECT_GIVE_UP_MS = 2 * 60_000L
+        /** Between asks while a panel still counts a dropped session (see the after-playing branch of onPlayerError). */
+        private const val SESSION_BUSY_RETRY_MS = 10_000L
         /** Connect timeout for live streams. A live server answers in well under a second; 15s (the app's
          *  default) left each reconnect during an outage waiting that long for every attempt. 5s still
          *  allows three SYNs (0, 1 and 3s). */

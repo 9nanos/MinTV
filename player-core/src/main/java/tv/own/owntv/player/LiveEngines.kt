@@ -81,6 +81,12 @@ interface LiveEngines {
      */
     suspend fun awaitMpvOutcome(timeoutMs: Long): MpvOutcome?
 
+    /**
+     * After mpv has opened: wait until it fails for good, and say why. "No internet" does not count — mpv
+     * reconnects by itself when the network returns, and the other engine could not play without one either.
+     */
+    suspend fun awaitMpvFailure(): String
+
     /** The Stalker re-resolve hook, installed on both engines, or cleared with null. */
     fun setReconnectProvider(provider: ReconnectUrlProvider?)
 
@@ -152,6 +158,9 @@ class EnginePair(private val exo: LivePreviewEngine, private val mpv: OwnTVPlaye
     override suspend fun awaitMpvOutcome(timeoutMs: Long): MpvOutcome? = withTimeoutOrNull(timeoutMs) {
         combine(mpv.playbackStarted, mpv.error, ::mpvOutcomeOf).first { it != null }
     }
+
+    override suspend fun awaitMpvFailure(): String =
+        mpv.error.first { it != null && it != PlaybackFailure.NoInternet }.toString()
 
     override fun setReconnectProvider(provider: ReconnectUrlProvider?) {
         exo.reconnectUrlProvider = provider

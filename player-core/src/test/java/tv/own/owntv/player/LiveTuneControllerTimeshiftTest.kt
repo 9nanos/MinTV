@@ -105,6 +105,7 @@ class LiveTuneControllerTimeshiftTest {
         override suspend fun awaitMpvOutcome(timeoutMs: Long): MpvOutcome? = withTimeoutOrNull(timeoutMs) {
             CompletableDeferred<MpvOutcome>().await()
         }
+        override suspend fun awaitMpvFailure(): String = CompletableDeferred<String>().await()
         override fun setReconnectProvider(provider: ReconnectUrlProvider?) {}
     }
 
