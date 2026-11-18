@@ -757,6 +757,12 @@ class LivePreviewEngine(
     // re-fetches from the live edge instead of dead-ending. A channel that NEVER opened keeps the old
     // ERROR (so the VM falls back to mpv). tune.retryCount resets whenever playback goes healthy again.
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Turns the fully configured builder into the player, on every (re)build. A unit test replaces it to
+     * add Media3's fake clock or to hand back a test player.
+     */
+    internal var playerFactory: (ExoPlayer.Builder) -> ExoPlayer = { it.build() }
     private val audioOnlyConfirmation = Runnable {
         if (currentUrl != null && tune.hasAudioTrack && !tune.hasVideoTrack && !_audioOnly.value &&
             player?.playbackState == Player.STATE_READY
@@ -3483,13 +3489,13 @@ class LivePreviewEngine(
                     .setAllowInvalidateSelectionsOnRendererCapabilitiesChange(FfmpegAudio.switchedOn),
             )
         }
-        return ExoPlayer.Builder(context)
+        val builder = ExoPlayer.Builder(context)
             .setRenderersFactory(renderers)
             .setTrackSelector(trackSelector)
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFor(currentUa)))
             .setLoadControl(loadControl)
             .setAudioAttributes(OWNTV_MEDIA_AUDIO, false)
-            .build()
+        return playerFactory(builder)
             .apply {
                 setWakeMode(if (backgroundPlayback) C.WAKE_MODE_NETWORK else C.WAKE_MODE_NONE)
                 // Media3's default ONLY_IF_SEAMLESS still issues Surface.setFrameRate() requests. Some

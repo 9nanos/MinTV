@@ -6473,10 +6473,12 @@
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	END_FILE STOP with no credit left — app-caused, not a failure
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	END_FILE before FILE_LOADED — account session in use, showing the error
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	END_FILE before FILE_LOADED — demuxer rejected file, hard-resetting
+1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	END_FILE for generation $gen, now $loadGeneration — ignored
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	END_FILE reason=${endFileReasonName(reason)} error=$error live=$isLiveContent
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	EXO
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	Emulator
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	Exo codec gate: audio codec='$codec' → $verdict
+1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	FILE_LOADED for generation $gen, now $loadGeneration — ignored
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	FILE_LOADED with pendingStopEndFiles=$pendingStops generation=$loadGeneration
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	FairPlay-protected item — not playable on Android
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	Genymotion
