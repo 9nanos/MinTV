@@ -687,10 +687,10 @@ object SupportedLocales {
             endonym = "کوردیی ناوەندی",
             script = "Arab",
             rtl = true,
-            tier = 2,
-            packaged = false,
-            pickerVisible = false,
-            coverage = 0,
+            tier = 1,
+            packaged = true,
+            pickerVisible = true,
+            coverage = 100,
         ),
     )
 
