@@ -32,6 +32,7 @@
 - **⏪ Timeshift: a channel whose provider still counts the previous connection is saved after a short wait instead of dropped**
 - **📶 Live TV on ExoPlayer: after a network drop, a provider still holding the old connection is waited out instead of giving up**
 - **🎬 Films: a film mpv cannot open now switches to ExoPlayer instead of loading forever**
+- **🌈 "Prefer SDR" now also works on mpv**
 
 ## core-1.0.71 — 2026-11-09
 

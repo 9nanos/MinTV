@@ -6735,6 +6735,7 @@
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	playback didn't start — offline, skipping retries
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	playback stats: container-fps=${getPropertyString("container-fps")}
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	pq
+1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	prefer SDR: ${ids.size} of ${bitrates.size} variants are SDR
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	profile
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	queue item resolve failed: ${e.message}
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	quit
@@ -6785,12 +6786,13 @@
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/codec
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/demux-fps
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/demux-h
-2	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/id
+1	protocol	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/hls-bitrate
+3	protocol	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/id
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/lang
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/selected
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/title
-3	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/type
-3	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/count
+4	protocol	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/$i/type
+4	protocol	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	track-list/count
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	trimmed probe found no audio — re-probing fully
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	ua=${if (currentUserAgent.isNullOrBlank()) "default" else "custom"}
 3	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	unknown
@@ -6802,7 +6804,7 @@
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	vd-lavc-fast
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	vd-lavc-skiploopfilter
 4	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	vid
-2	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	video
+3	protocol	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	video
 1	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	video-aspect-override
 5	technical	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	video-bitrate
 1	log	player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt	video-bitrate=${getPropertyString("video-bitrate")}
@@ -7001,7 +7003,8 @@
 1	log	player-core/src/main/java/tv/own/owntv/player/ScreenOff.kt	ScreenOff
 1	log	player-core/src/main/java/tv/own/owntv/player/ScreenOff.kt	lockNow failed
 1	technical	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	#
-1	technical	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	#EXT-X-STREAM-INF:
+2	protocol	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	#EXT-X-STREAM-INF:
+1	regex	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	(?<![A-Z-])BANDWIDTH=(\\d+)
 1	technical	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	HLG
 1	technical	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	PQ
 1	technical	player-core/src/main/java/tv/own/owntv/player/SdrVariants.kt	VIDEO-RANGE="?([A-Za-z]+)

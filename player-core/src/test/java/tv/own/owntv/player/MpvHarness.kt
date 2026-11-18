@@ -93,6 +93,7 @@ internal class MpvHarness {
     val core: FakeMpvCore get() = cores.last()
     val diagnostics = PlayerDiagnostics()
     val player: OwnTVPlayer
+    val settings: SettingsRepository
     private var surface = Surface(SurfaceTexture(0))
 
     /** What the player screen does when [OwnTVPlayer.surfaceResetToken] moves: a new SurfaceView. */
@@ -112,7 +113,7 @@ internal class MpvHarness {
         Thread.getAllStackTraces().keys.filter { it.name == "owntv-logcat" }.forEach { it.join(30_000) }
 
         val localeStore = LocaleStore.from(app)
-        val settings = SettingsRepository(app, localeStore)
+        settings = SettingsRepository(app, localeStore)
         val metadata = MetadataRepository(inert(), inert(), settings, MetadataOverrideStore(app), inert())
         player = OwnTVPlayer(
             context = app,

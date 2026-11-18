@@ -343,6 +343,8 @@ class OwnTVPlayer(
         // lines — and gives up after this long, well inside the open timeout it replaces.
         private const val EOF_CHECK_BYTES = 1024L
         private const val EOF_CHECK_TIMEOUT_MS = 3_000L
+        // A master playlist that lists HDR and SDR variants is a few kilobytes; this is far past any real one.
+        private const val PLAYLIST_MAX_BYTES = 256 * 1024L
         private const val USER_AGENT_HEADER = "User-Agent"
         // mpv's `network-timeout` for live (FFmpeg's connect and read wait). Films keep mpv's 60 s or
         // their own setting; on live one hung HLS segment held the picture that long, where 10 s lets FFmpeg
@@ -4508,7 +4510,8 @@ class OwnTVPlayer(
     private fun MpvCore.applyMpvVideoQuality() {
         if (_audioOnly.value) return
         val pick = _videoQualityPick.value.takeIf { qualityPickUrl == currentUrl }
-        val id = VideoQuality.mpvTrack(mpvVideoTracks, qualityCap(), pick) ?: return
+        val sdr = load.sdrTrackIds.takeIf { preferSdr }
+        val id = VideoQuality.mpvTrackWithin(mpvVideoTracks, sdr, qualityCap(), pick) ?: return
         if (getPropertyInt("vid") != id) setPropertyInt("vid", id)
     }
 
@@ -4521,6 +4524,51 @@ class OwnTVPlayer(
             id to (m.getPropertyInt("track-list/$i/demux-h") ?: 0)
         }
     }
+
+    /** The `hls-bitrate` of each video track that has one (the HLS variant's BANDWIDTH). Synchronous read. */
+    private fun queryVideoBitrates(m: MpvCore): Map<Int, Long> {
+        val count = m.getPropertyInt("track-list/count") ?: 0
+        return buildMap {
+            for (i in 0 until count) {
+                if (m.getPropertyString("track-list/$i/type") != "video") continue
+                val id = m.getPropertyInt("track-list/$i/id") ?: continue
+                m.getPropertyString("track-list/$i/hls-bitrate")?.toLongOrNull()?.takeIf { it > 0 }?.let { put(id, it) }
+            }
+        }
+    }
+
+    /**
+     * "Prefer SDR" on mpv. mpv says nothing about a variant's dynamic range, so the master playlist is read
+     * here — once, after the file opened — and its SDR variants are matched to mpv's tracks by bandwidth
+     * ([SdrVariants.sdrTrackIds]). The picture then moves to the SDR track the Quality rules choose.
+     */
+    private fun preferSdrVariants(url: String, gen: Int, bitrates: Map<Int, Long>) {
+        val headers = currentHeaders
+        val userAgent = effectiveUserAgent(url)
+        scope.launch {
+            val playlist = withContext(Dispatchers.IO) { readPlaylist(url, headers, userAgent) } ?: return@launch
+            if (gen != loadGeneration || currentUrl != url) return@launch
+            val ids = SdrVariants.sdrTrackIds(playlist, bitrates) ?: return@launch
+            android.util.Log.i(TAG, "prefer SDR: ${ids.size} of ${bitrates.size} variants are SDR")
+            load.sdrTrackIds = ids
+            mpvAsync { applyMpvVideoQuality() }
+        }
+    }
+
+    /** The playlist text at [url] (at most [PLAYLIST_MAX_BYTES]), or null when the request failed. */
+    private fun readPlaylist(url: String, headers: Map<String, String>, userAgent: String): String? =
+        runCatching {
+            val request = okhttp3.Request.Builder().url(url).apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                header(USER_AGENT_HEADER, userAgent)
+            }.build()
+            eofCheckHttp.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val source = response.body.source()
+                source.request(PLAYLIST_MAX_BYTES)
+                source.buffer.readUtf8(minOf(PLAYLIST_MAX_BYTES, source.buffer.size))
+            }
+        }.getOrNull()
 
     fun audioTracks(): List<TrackOption> = _audioTrackList.value
     fun textTracks(): List<TrackOption> = _subTrackList.value
@@ -5118,6 +5166,8 @@ class OwnTVPlayer(
         val paused: Boolean?,
         val height: Int?,
         val width: Int?,
+        /** Each video track's HLS variant bandwidth (`hls-bitrate`), by id; empty when not HLS. */
+        val videoBitrates: Map<Int, Long>,
     )
 
     override fun event(eventId: Int) {
@@ -5150,6 +5200,7 @@ class OwnTVPlayer(
                     paused = m?.getPropertyBoolean("pause"),
                     height = m?.getPropertyInt("height"),
                     width = m?.getPropertyInt("width"),
+                    videoBitrates = m?.let { queryVideoBitrates(it) }.orEmpty(),
                 )
                 onMain { onFileLoaded(gen, opened) }
             }
@@ -5203,6 +5254,10 @@ class OwnTVPlayer(
             if (qualityPickUrl != currentUrl) _videoQualityPick.value = null
             _videoQualities.value = VideoQuality.heights(tracks.map { it.second })
             mpvAsync { applyMpvVideoQuality() }
+        }
+        val url = currentUrl
+        if (preferSdr && url != null && opened.videoBitrates.values.distinct().size > 1) {
+            preferSdrVariants(url, gen, opened.videoBitrates)
         }
         _audioCount.value = _audioTrackList.value.size
         _subCount.value = _subTrackList.value.size
@@ -5853,6 +5908,8 @@ internal data class LoadState(
     val zapPressAt: Long? = null,
     /** The film cache has been re-sized from the measured bitrate (or needs none) — see maybeRefineFilmCache. */
     @field:Volatile var filmCacheRefined: Boolean = false,
+    /** "Prefer SDR": the SDR video tracks of an HLS stream that also has HDR ones; null = no restriction. */
+    @field:Volatile var sdrTrackIds: Set<Int>? = null,
 )
 
 internal data class ItemState(
