@@ -159,8 +159,8 @@
     <string name="sync_error_guide_empty">ئەم ڕێنمایە ئێستا بەتاڵە. لەوانەیە دابینکەر هێشتا بڵاوی نەکردبێتەوە — تکایە دواتر دووبارە هەوڵبدەرەوە.</string>
     <string name="sync_error_guide_no_matching_channels">هیچ کام لە کەناڵەکانی ئەم ڕێنمایە هێشتا لەگەڵ کەناڵەکانی لیستی پەخشەکەت ناگونجێن. ڕێنمای تیڤی بکەرەوە و هاوتاکردنی خۆکاری EPG بەکاربهێنە بۆ جووتکردنیان بە ناو.</string>
     <string name="common_minutes">خولەک</string>
-    <string name="common_size_mb"><xliff:g id="size">%1$s</xliff:g> MB</string>
-    <string name="common_size_gb"><xliff:g id="size">%1$s</xliff:g> GB</string>
+    <string name="common_size_mb"><xliff:g id="size">%1$s</xliff:g> مێگابایت</string>
+    <string name="common_size_gb"><xliff:g id="size">%1$s</xliff:g> گیگابایت</string>
     <string name="common_plus">+</string>
     <string name="common_minus">–</string>
     <string name="common_hide">شاردنەوە</string>
