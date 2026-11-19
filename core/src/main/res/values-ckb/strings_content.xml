@@ -119,7 +119,7 @@
     <string name="content_season">وەرزی <xliff:g id="season">%1$d</xliff:g></string>
     <string name="content_no_epg">EPG نییە</string>
     <string name="content_live_day_time_range"><xliff:g id="day">%1$s</xliff:g> <xliff:g id="start">%2$s</xliff:g> – <xliff:g id="stop">%3$s</xliff:g></string>
-    <string name="content_catchup">بینینی دواتر</string>
+    <string name="content_catchup">Catch-up</string>
     <string name="content_play_external_short">پەخشکردن لە لێدەری دەرەکی</string>
     <string name="content_rename">ناوگۆڕین</string>
     <string name="content_rename_channel">ناوگۆڕینی کەناڵ</string>
@@ -212,7 +212,7 @@
     <string name="content_download_watch_ask">هەموو جارێک بپرسە</string>
     <string name="content_download_watch_pause">ڕاگرتنی داگرتن</string>
     <string name="content_downloads_starts_after">لە ڕیزدا · دوای <xliff:g id="title">%1$s</xliff:g> دەست پێدەکات</string>
-    <string name="content_downloads_speed"><xliff:g id="size">%1$s</xliff:g> مێگابایت/چرکە</string>
+    <string name="content_downloads_speed"><xliff:g id="size">%1$s</xliff:g> MB/s</string>
     <string name="content_epg_create_profile">پرۆفایلێک دروست بکە بۆ بینینی ڕێنما.</string>
     <string name="content_epg_filter_hides_all">هەموو کەناڵەکان بەهۆی فلتەری ئێستاوە شاراونەتەوە. ڕیزبەندی بگۆڕە بۆ بینینی ڕێنما.</string>
     <string name="content_epg_add_playlist">لیستی پەخشێک زیاد بکە بۆ بینینی ڕێنما.</string>
@@ -260,7 +260,7 @@
     <string name="content_epg_all">هەموو</string>
     <string name="content_epg_sort_alpha">A–Z</string>
     <string name="content_epg_sort_provider">دابینکەر</string>
-    <string name="content_epg_sort_catchup">بینینی دواتر</string>
+    <string name="content_epg_sort_catchup">Catch-up</string>
     <string name="content_epg_sort_favorites">دڵخوازەکان</string>
     <string name="content_epg_sort_button">ڕیزبەندی: <xliff:g id="label">%1$s</xliff:g></string>
     <string name="content_epg_match_button">هاوتاکردنی خۆکاری EPG</string>

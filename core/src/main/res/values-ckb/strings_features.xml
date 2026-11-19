@@ -53,7 +53,7 @@
     <string name="search_card_body">کەناڵەکان, فیلم و زنجیرەکان لە هەموو لیستێکی پەخش کە پیشانی دەدەیت. ئەنجامێک هەڵبژێرە بۆ ئەوەی ڕاستەوخۆ بۆی بچیت, پاشان لەوێ پەخشی بکە, دایبگرە یان هەڵبژاردەکانی بکەرەوە. بەرنامە تەلەڤیزیۆنییەکانی ئێستا یان دواتری ئەمڕۆش بە ناونیشانیان دەدۆزرێنەوە.</string>
     <string name="search_nothing_found">هیچ نەدۆزرایەوە بۆ “<xliff:g id="query">%1$s</xliff:g>”</string>
     <string name="search_nothing_found_body">گەڕان لە ناوی کەناڵ, فیلم و زنجیرەکانی ئەو لیستانەی پەخش دەگەڕێت کە پیشانیان دەدەیت. لە پۆلە شاراوەکان ناگەڕێت. بەرنامە تەلەڤیزیۆنییەکان بە ناونیشانیان لە ڕێبەرە داگیراوەکەدا دەدۆزرێنەوە.</string>
-    <string name="search_query_quoted">«<xliff:g id="query">%1$s</xliff:g>»</string>
+    <string name="search_query_quoted">“<xliff:g id="query">%1$s</xliff:g>”</string>
     <plurals name="search_result_count">
         <item quantity="one"><xliff:g id="count">%1$d</xliff:g> ئەنجام</item>
         <item quantity="other"><xliff:g id="count">%1$d</xliff:g> ئەنجام</item>
@@ -481,7 +481,7 @@
     <string name="sports_goal_alerts_description">بۆ تیمەکانم, لە کاتی سەیرکردنی شتێکی تر</string>
     <string name="sports_match_reminders_description">پێش دەست-پێکردن, لەگەڵ باشترین کەناڵ</string>
     <string name="sports_remembered_channels">کەناڵە لەبیرگیراوەکان</string>
-    <string name="sports_remembered_one"><xliff:g id="competition">%1$s</xliff:g> ← <xliff:g id="channel">%2$s</xliff:g></string>
+    <string name="sports_remembered_one"><xliff:g id="competition">%1$s</xliff:g> → <xliff:g id="channel">%2$s</xliff:g></string>
     <plurals name="sports_remembered_summary">
         <item quantity="one"><xliff:g id="competition">%1$s</xliff:g> → <xliff:g id="channel">%2$s</xliff:g> · <xliff:g id="count">%3$d</xliff:g> زیاتر</item>
         <item quantity="other"><xliff:g id="competition">%1$s</xliff:g> → <xliff:g id="channel">%2$s</xliff:g> · <xliff:g id="count">%3$d</xliff:g> زیاتر</item>

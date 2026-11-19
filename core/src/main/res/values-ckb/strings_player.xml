@@ -48,7 +48,7 @@
     <string name="player_multiple_channels">چەند کەناڵێک</string>
     <string name="player_tune_failed">گۆڕینی کەناڵ سەرکەوتوو نەبوو</string>
     <string name="player_playback_error">هەڵەی لێدان</string>
-    <string name="player_raw_error">هەڵە: <xliff:g id="error">%1$s</xliff:g></string>
+    <string name="player_raw_error">err: <xliff:g id="error">%1$s</xliff:g></string>
     <string name="player_provider_retry_after">HTTP <xliff:g id="code">%1$d</xliff:g>: <xliff:g id="reason">%2$s</xliff:g> هەوڵدانەوە دوای <xliff:g id="seconds">%3$d</xliff:g> چرکە.</string>
     <string name="player_provider_busy">دابینکەر سەرقاڵە.</string>
     <string name="player_reconnecting">پەخش پچڕا. پەیوەستبوونەوە…</string>
@@ -157,11 +157,11 @@
     <string name="player_stream_engine_exo_preferred">ExoPlayer (پەسەندکراو)</string>
     <string name="player_stream_engine_exo_fallback">ExoPlayer (جێگرەوە دوای شکستی mpv)</string>
     <string name="player_stream_engine_exo_image_subtitle">ExoPlayer (وێنە-گواستنەوەی ژێرنووس)</string>
-    <string name="player_stream_fps"><xliff:g id="fps">%1$.2f</xliff:g> وێنە/چرکە</string>
+    <string name="player_stream_fps"><xliff:g id="fps">%1$.2f</xliff:g> fps</string>
     <string name="player_stream_bit_depth"><xliff:g id="bits">%1$d</xliff:g>-بیت</string>
-    <string name="player_stream_mbps"><xliff:g id="value">%1$s</xliff:g> مێگابیت/چرکە</string>
-    <string name="player_stream_khz"><xliff:g id="value">%1$s</xliff:g> کیلۆهێرتز</string>
-    <string name="player_stream_kbps"><xliff:g id="value">%1$s</xliff:g> کیلۆبیت/چرکە</string>
+    <string name="player_stream_mbps"><xliff:g id="value">%1$s</xliff:g> Mbps</string>
+    <string name="player_stream_khz"><xliff:g id="value">%1$s</xliff:g> kHz</string>
+    <string name="player_stream_kbps"><xliff:g id="value">%1$s</xliff:g> kbps</string>
     <string name="player_stream_seconds"><xliff:g id="value">%1$s</xliff:g> چرکە بافەر کراوە</string>
     <string name="player_audio_only_title">تەنها دەنگ</string>
     <string name="player_audio_only_body">ئەمە دەنگی هەیە بەڵام وێنەی نییە. هیچ کێشەیەک نییە — ئەمە\' بە ئاسایی لێ دەدرێت.</string>
