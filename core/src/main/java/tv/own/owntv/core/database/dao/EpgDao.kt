@@ -214,6 +214,14 @@ interface EpgDao {
     @Query("SELECT COUNT(*) FROM epg_programmes WHERE epgChannelId = :epgChannelId AND stopMs > :now")
     suspend fun countUpcomingForChannel(epgChannelId: String, now: Long): Int
 
+    /** Which of these (normalized) guide ids have any programme stored. */
+    @Query("SELECT DISTINCT epgChannelId FROM epg_programmes WHERE epgChannelId IN (:epgChannelIds)")
+    suspend fun epgIdsWithProgrammes(epgChannelIds: List<String>): List<String>
+
+    /** The guide feeds whose channel list names any of these (normalized) guide ids. */
+    @Query("SELECT DISTINCT sourceId FROM epg_channels WHERE epgChannelId IN (:epgChannelIds)")
+    suspend fun feedsCarrying(epgChannelIds: List<String>): List<Long>
+
 
     /** Live programme count for one source — drives the EPG status shown on the source row. */
     @Query("SELECT COUNT(*) FROM epg_programmes WHERE sourceId = :sourceId")

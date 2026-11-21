@@ -1276,6 +1276,8 @@
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT COUNT(*) FROM epg_programmes WHERE sourceId IN (:sourceIds)
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT COUNT(DISTINCT epgChannelId) FROM epg_programmes WHERE sourceId IN (:sourceIds)
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT epgChannelId FROM epg_programmes LIMIT :limit
+1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT epgChannelId FROM epg_programmes WHERE epgChannelId IN (:epgChannelIds)
+1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT sourceId FROM epg_channels WHERE epgChannelId IN (:epgChannelIds)
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT sourceId FROM epg_channels WHERE epgChannelId IN (:epgChannelIds) AND iconUrl IS NOT NULL AND iconUrl != ''
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT MAX(id) FROM epg_programmes
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT description FROM epg_programmes WHERE id = :programmeId LIMIT 1
@@ -2154,6 +2156,11 @@
 1	log	core/src/main/java/tv/own/owntv/core/epg/GuideCandidates.kt	namedLimitHit=${named.size >= limit} programmeLimitHit=${withProgrammes.size >= limit}
 1	log	core/src/main/java/tv/own/owntv/core/epg/GuideCandidates.kt	queryMs=${queriedAt - startedAt} totalMs=${SystemClock.elapsedRealtime() - startedAt}
 1	log	core/src/main/java/tv/own/owntv/core/epg/GuideCandidates.kt	rankMs=${SystemClock.elapsedRealtime() - startedAt}
+1	log	core/src/main/java/tv/own/owntv/core/epg/GuideMatches.kt	GuideMatches
+1	log	core/src/main/java/tv/own/owntv/core/epg/GuideMatches.kt	guide match fill failed
+1	log	core/src/main/java/tv/own/owntv/core/epg/GuideMatches.kt	guide match ids=${ids.size} fromCache=${filled.size} toFetch=${fetch.size} feeds=$carrying
+1	log	core/src/main/java/tv/own/owntv/core/epg/GuideMatches.kt	guide re-sync not queued feed=$id
+1	protocol	core/src/main/java/tv/own/owntv/core/epg/GuideMatches.kt	match
 1	protocol	core/src/main/java/tv/own/owntv/core/home/HomeFeed.kt	${snapshot.mediaType.name}:${snapshot.tmdbId}
 1	protocol	core/src/main/java/tv/own/owntv/core/home/HomeFeed.kt	1080p FHD
 1	protocol	core/src/main/java/tv/own/owntv/core/home/HomeFeed.kt	4K
