@@ -887,8 +887,8 @@ class EpgRepository(
      *
      * Many `xmltv.php` feeds stop about a day back while the archive keeps up to a week, so most of
      * what catch-up could replay never shows in the guide. One API call for one channel, at most once
-     * every few hours per channel ([ArchiveGuidePlan]). The rows only ever end where the feeds' own
-     * rows begin, and are stored under a guide store of their own ([ArchiveGuidePlan.storeId]): not
+     * every few hours per channel ([ArchiveGuidePlan]). The rows only fill the finished stretches the
+     * feeds' own rows leave empty, and are stored under a guide store of their own ([ArchiveGuidePlan.storeId]): not
      * the playlist's id, whose guide sync would delete them as missing from its feed. Being no EPG
      * source, that store ranks below all of them ([tv.own.owntv.core.epg.GuidePriority]). Each fill
      * replaces the channel's rows there as a whole. Retention keeps them, as the past of every
@@ -918,7 +918,7 @@ class EpgRepository(
                 .partition { it.sourceId == store }
             val keep = ArchiveGuidePlan.toStore(
                 listings,
-                guideStartMs = feeds.minOfOrNull { it.startMs },
+                feedRows = feeds.map { it.startMs to it.stopMs },
                 windowStartMs = from,
                 nowMs = now,
             )

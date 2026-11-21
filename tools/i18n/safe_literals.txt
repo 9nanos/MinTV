@@ -1279,6 +1279,7 @@
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT epgChannelId FROM epg_programmes WHERE epgChannelId IN (:epgChannelIds)
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT sourceId FROM epg_channels WHERE epgChannelId IN (:epgChannelIds)
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT DISTINCT sourceId FROM epg_channels WHERE epgChannelId IN (:epgChannelIds) AND iconUrl IS NOT NULL AND iconUrl != ''
+1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT EXISTS(SELECT 1 FROM epg_programmes WHERE epgChannelId = :epgChannelId AND stopMs > :from AND startMs < :to)
 1	sql	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT MAX(id) FROM epg_programmes
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT description FROM epg_programmes WHERE id = :programmeId LIMIT 1
 1	room-schema	core/src/main/java/tv/own/owntv/core/database/dao/EpgDao.kt	SELECT epgChannelId FROM epg_channels WHERE sourceId = :sourceId
@@ -2233,7 +2234,7 @@
 1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	guide_row source=stored channelId=${channel.id} key=$epgKey shift=$shift
 1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	guide_slice channels=${channels.size} keys=${keyed.map { it.second }.distinct().size}
 1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	rows=${rows.size} totalMs=${SystemClock.elapsedRealtime() - startedAt}
-1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	rows=${stored.size} collapsed=${collapsed.size}
+1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	rows=${stored.size} collapsed=${collapsed.size} providerTail=${tail.size}
 1	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	shiftGroups=${keyed.groupBy { it.third }.size} chunks=$chunks rows=$rowsRead
 2	log	core/src/main/java/tv/own/owntv/core/live/GuideReader.kt	totalMs=${SystemClock.elapsedRealtime() - startedAt}
 1	log	core/src/main/java/tv/own/owntv/core/live/LiveArchiveUrls.kt	OwnTVHome

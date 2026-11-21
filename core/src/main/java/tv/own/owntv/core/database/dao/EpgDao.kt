@@ -71,6 +71,10 @@ interface EpgDao {
     @Query("SELECT (MAX(stopMs) - MIN(startMs)) / 86400000 FROM epg_programmes WHERE epgChannelId = :epgChannelId")
     suspend fun coverageDays(epgChannelId: String): Int?
 
+    /** Whether any programme of [epgChannelId] (normalized) is on between [from] and [to]. */
+    @Query("SELECT EXISTS(SELECT 1 FROM epg_programmes WHERE epgChannelId = :epgChannelId AND stopMs > :from AND startMs < :to)")
+    suspend fun hasProgrammesBetween(epgChannelId: String, from: Long, to: Long): Boolean
+
     // --- Guide reads: keyed by epgChannelId ALONE ------------------------------------------------
     //
     // None of the four queries below filters by sourceId, and that is the fix for a bug that outlived
