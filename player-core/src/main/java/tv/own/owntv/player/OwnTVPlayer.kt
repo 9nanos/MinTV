@@ -2495,7 +2495,10 @@ class OwnTVPlayer(
             // "both engines failed"; same mpv-first single-connection ordering as the preferred-engine path.
             if (attachedSurface == null) return
             android.util.Log.i(TAG, "HUD engine toggle: mpv → ExoPlayer")
-            val pos = if (load.fileLoaded && _position.value > 0) _position.value else load.pendingSeekMs
+            // The same rule as the other direction: a catch-up archive has no Range support, so it restarts
+            // at its beginning. Handed an offset, ExoPlayer waited on it with one input buffer queued until
+            // its no-frame watchdog (12 s) restarted it at 0 — in software, on the TCL.
+            val pos = if (item.archiveThisItem) 0L else if (load.fileLoaded && _position.value > 0) _position.value else load.pendingSeekMs
             // Carry the active subtitle across the switch: session externals are re-seeded into
             // ExoPlayer by startExo — an active external is selected there by label, an embedded pick
             // by its ordinal (via load.pendingExoSub).
