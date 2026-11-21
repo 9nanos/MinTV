@@ -24,18 +24,10 @@ class LiveArchiveUrls(
     private val settings: tv.own.owntv.core.settings.SettingsRepository,
 ) {
     /**
-     * The archive URL for [programme] on [ch], or null when it can't be built.
-     *
-     * A Flussonic programme that has finished ([EpgProgrammeEntity.stopMs] not after [nowMs]) gets the
-     * seekable VOD playlist with its full length. One still on air does not: that playlist is closed
-     * with `#EXT-X-ENDLIST` at the part already aired, so playback would stop there, while the other
-     * forms keep following the recording.
+     * The archive URL for [programme] on [ch], or null when it can't be built. Which form a Flussonic
+     * programme gets is [tv.own.owntv.core.epg.CatchupUrl.forSource]'s rule, shared with the Guide.
      */
-    suspend fun forProgramme(
-        ch: ChannelEntity,
-        programme: EpgProgrammeEntity,
-        nowMs: Long = System.currentTimeMillis(),
-    ): String? =
+    suspend fun forProgramme(ch: ChannelEntity, programme: EpgProgrammeEntity): String? =
         withContext(Dispatchers.IO) {
             val source = sourceDao.getById(ch.sourceId) ?: return@withContext null
             // Stalker archive URLs are minted per-play via create_link; the others
@@ -47,10 +39,7 @@ class LiveArchiveUrls(
                         .getOrNull()
                 }
             } else {
-                tv.own.owntv.core.epg.CatchupUrl.forSource(
-                    ch, programme, source, settings.resolveCatchupTimeZone(source), xtreamClient,
-                    seekable = programme.stopMs <= nowMs,
-                )
+                tv.own.owntv.core.epg.CatchupUrl.forSource(ch, programme, source, settings.resolveCatchupTimeZone(source), xtreamClient)
             }
         }
 

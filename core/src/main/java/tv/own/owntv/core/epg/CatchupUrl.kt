@@ -159,11 +159,11 @@ object CatchupUrl {
      * Build the catch-up URL for a [programme] on [channel] given its resolved [source] and the [tz] the
      * provider expects timeshift timestamps in. Shared by the Guide and Live TV catch-up entry points.
      *
-     * [seekable] picks the form of a Flussonic archive URL (see [forM3u]). Playing one fixed programme
-     * wants the seekable HLS VOD playlist, whose full length is known up front, so a caller that plays a
-     * finished programme passes true. It defaults to false, as in [forM3u], so a new caller never gets the
-     * VOD form by accident: a programme still on air gets a VOD playlist that ends where the recording
-     * is now, and a download wants one finite body. Xtream and the other catch-up types build the same URL either way.
+     * A Flussonic programme gets the seekable HLS VOD playlist (see [forM3u]) only when the playlist's own
+     * "Prefer HLS for catch-up" is on **and** the programme has finished by [nowMs]. Off, the URL is the
+     * MPEG-TS or sliding-window form every Flussonic server serves. One still on air never gets it: that
+     * playlist is closed with `#EXT-X-ENDLIST` at the part already aired, so playback would stop there.
+     * The recorder passes a copy with the switch off, so a download keeps one finite MPEG-TS body.
      */
     fun forSource(
         channel: ChannelEntity,
@@ -171,7 +171,7 @@ object CatchupUrl {
         source: SourceEntity,
         tz: TimeZone,
         xtream: XtreamClient,
-        seekable: Boolean = false,
+        nowMs: Long = System.currentTimeMillis(),
     ): String? {
         if (!channel.catchup) return null
         return when (source.type) {
@@ -194,11 +194,29 @@ object CatchupUrl {
                 programme.stopMs,
                 tz,
                 channel.catchupCorrectionMin,
-                seekable,
+                seekable = source.catchupPreferHls && programme.stopMs <= nowMs,
             )
             else -> null
         }
     }
+
+    private val FLUSSONIC_VOD = Regex("^(.*/)index-(\\d+)-(\\d+)\\.m3u8((?:\\?.*)?)$", RegexOption.IGNORE_CASE)
+
+    /**
+     * The MPEG-TS archive of a Flussonic VOD playlist: `…/index-<start>-<duration>.m3u8` →
+     * `…/archive-<start>-<duration>.ts`, query kept — the address the programme has with "Prefer HLS for
+     * catch-up" off. Null for any other URL. The player asks for it when the server will not serve the
+     * playlist; the plain extension swap would give `index-….ts`, which Flussonic does not serve.
+     */
+    fun flussonicArchiveTs(url: String): String? {
+        val g = FLUSSONIC_VOD.find(url)?.groupValues ?: return null
+        return "${g[1]}archive-${g[2]}-${g[3]}.ts${g[4]}"
+    }
+
+    private val FLUSSONIC_SLIDING = Regex("/timeshift_abs-\\d+\\.m3u8(?:\\?.*)?$", RegexOption.IGNORE_CASE)
+
+    /** True for Flussonic's sliding-window archive `…/timeshift_abs-<start>.m3u8`, which has no `.ts` sibling. */
+    fun isFlussonicSlidingWindow(url: String): Boolean = FLUSSONIC_SLIDING.containsMatchIn(url)
 
     private val TIMESHIFT_PATH = Regex(
         "^(.+?)/timeshift/([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^/.]+)\\.(?:ts|m3u8)$",
