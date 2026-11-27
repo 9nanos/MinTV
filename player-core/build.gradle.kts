@@ -132,3 +132,12 @@ dependencies {
     testImplementation(libs.androidx.media3.test.utils)
     testImplementation(libs.androidx.media3.test.utils.robolectric)
 }
+
+// Min TV CI: print a failing test's full message (the timing-sensitive engine tests say which state
+// they stopped in), not just the exception class and line.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
