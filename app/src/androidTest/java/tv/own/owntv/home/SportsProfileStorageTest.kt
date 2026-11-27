@@ -32,7 +32,7 @@ class SportsProfileStorageTest {
             dao.insert(ProfileEntity(id = 102, name = "Synthetic B", avatarColor = 0, createdAt = 200))
             val store = SportsPreferences(isolated, dao)
             store.migrateLegacy(dao.getAllOnce())
-            val legacy = SportPreferences(listOf(SportsCatalog.farjestadId))
+            val legacy = SportPreferences() // migration never preselects a team
             assertEquals(legacy, store.read(101))
             assertEquals(legacy, store.read(102))
             val a = SportPreferences(listOf("hockey:karlskoga", "football:degerfors-if"), prominent = false, hideScores = true)
@@ -51,7 +51,7 @@ class SportsProfileStorageTest {
             // A second local picker updates only its fields, preserving the fresh public-source selection.
             assertTrue(store.updateSelection(101, owner) { it.copy(hideScores = false) })
             assertEquals(listOf(follow), store.read(101).hubTeams)
-            // A later restore/new profile is not treated as an old hardcoded Färjestad preference.
+            // A later restore/new profile also starts without a team.
             dao.insert(ProfileEntity(id = 103, name = "Synthetic new", avatarColor = 0, createdAt = 300))
             store.migrateLegacy(dao.getAllOnce())
             assertEquals(SportPreferences(), store.read(103))

@@ -66,7 +66,7 @@ internal class SportsPreferences(context: Context, private val profiles: tv.own.
             val edit = preferences.edit()
             existing.filter { it.id >= 0 }.forEach { profile ->
                 if (!preferences.contains("profile:${profile.id}")) edit.putString("profile:${profile.id}",
-                    SportPreferencesCodec.bound(SportPreferences(listOf(SportsCatalog.farjestadId)), profile.createdAt))
+                    SportPreferencesCodec.bound(SportPreferences(), profile.createdAt)) // no preselected team; users pick their own
             }
             check(edit.putBoolean("legacy-migrated", true).commit())
             revision.value++
