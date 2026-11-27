@@ -79,7 +79,6 @@ class SwedishLivePresentationTest {
                     val list = rememberLazyListState()
                     val entry = remember { FocusRequester() }
                     val targets = remember { mutableMapOf<String, FocusRequester>() }
-                    val schedule = remember { FocusRequester() }
                     var focused by remember { mutableIntStateOf(0) }
                     var fullscreen by remember { mutableStateOf(false) }
                     var variants by remember { mutableStateOf(false) }
@@ -124,8 +123,8 @@ class SwedishLivePresentationTest {
                         val info = row(focused)
                         fun entry(p: SwedishProgramme) = XtEpgEntry(p.title, "Syntetisk programinformation för layoutgranskning.", p.startMs, p.stopMs)
                         LiveStagePane(ChannelEntity(id = focused + 1L, sourceId = 101, name = name(focused), streamUrl = "https://example.invalid/synthetic"),
-                            name(focused), EpgNowNext(info.now?.let(::entry), info.next?.let(::entry)), engine, false, false, schedule,
-                            {}, { scope.launch { restore() } }, Modifier.fillMaxWidth())
+                            name(focused), EpgNowNext(info.now?.let(::entry), info.next?.let(::entry)), engine, false, false,
+                            Modifier.fillMaxWidth())
                     })
                     LaunchedEffect(Unit) { withFrameNanos { }; withFrameNanos { }; targets["0"]?.requestSafely() }
                 }
@@ -149,10 +148,10 @@ class SwedishLivePresentationTest {
         compose.onNodeWithTag("row-3").assertIsFocused(); assertEquals(3, selected); assertEquals(0, plays)
         compose.onAllNodesWithText("Nyheterna").assertCountEquals(2) // Row and full selected-pane description.
         screenshot("pr10-swedish-live-selected-tv4-synthetic.png")
-        val next = hasText("Nästa program 3", substring = true) and !hasAnyAncestor(hasTestTag("swedish-list"))
-        compose.onNode(next).performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
-        key(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.waitUntil(5000) { runCatching { compose.onNodeWithTag("row-3").assertIsFocused(); true }.getOrDefault(false) }
+        // Upstream 5.2.2 moved the pane's focusable schedule to the programme day page; the pane only
+        // shows Now/Next, so focus stays on the row.
+        compose.onNode(hasText("Nästa program 3", substring = true) and !hasAnyAncestor(hasTestTag("swedish-list"))).assertExists()
+        compose.onNodeWithTag("row-3").assertIsFocused()
         focus("row-6"); compose.onNodeWithText("Ingen programinformation").assertIsDisplayed()
         key(KeyEvent.KEYCODE_DPAD_CENTER); assertEquals(1, plays) // No EPG does not block OK.
         key(KeyEvent.KEYCODE_BACK); compose.waitUntil(5000) { runCatching { compose.onNodeWithTag("row-6").assertIsFocused(); true }.getOrDefault(false) }

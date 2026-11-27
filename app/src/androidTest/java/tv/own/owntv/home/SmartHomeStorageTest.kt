@@ -39,7 +39,7 @@ class SmartHomeStorageTest {
                 override fun getApplicationContext(): Context = this
                 override fun getSharedPreferences(name: String, mode: Int) = app.getSharedPreferences(prefix + name, mode)
             }
-            val custom = CustomizationStore(isolated)
+            val custom = CustomizationStore(isolated, org.koin.core.context.GlobalContext.get().get<tv.own.owntv.core.customize.CategoryLockView>())
             val actual = readSmartResumesForSources(db, custom, profile, setOf(101), setOf(101))
             assertEquals(listOf(12L, 1L), actual.map { it.itemId })
             assertEquals(11L, actual.first().seriesId)

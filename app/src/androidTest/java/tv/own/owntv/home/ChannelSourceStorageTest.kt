@@ -1,5 +1,6 @@
 package tv.own.owntv.home
 
+import androidx.room.execSQL
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
@@ -41,7 +42,7 @@ class ChannelSourceStorageTest {
                 id = id, sourceId = source, remoteId = remote, name = "TV4 $quality", streamUrl = "http://127.0.0.1:9/synthetic")
             val hd = channel(1, "HD"); val fhd = channel(2, "FHD"); val uhd = channel(3, "UHD", 102)
             db.channelDao().insertAll(listOf(hd, fhd, uhd))
-            val custom = CustomizationStore(isolated)
+            val custom = CustomizationStore(isolated, org.koin.core.context.GlobalContext.get().get<tv.own.owntv.core.customize.CategoryLockView>())
             val store = SwedishChannelStore(isolated, db, custom)
             val original = SwedishChoices(showUhd = false, showVariants = true, order = listOf("tv4", "svt1"), hidden = setOf("svt2"),
                 preferred = mapOf("svt1" to "keep:other"))
@@ -157,7 +158,8 @@ class ChannelSourceStorageTest {
             assertEquals("101:22", restarted.choices(7).preferred["svt1varmland"])
             assertTrue(restarted.library(8, listOf(101, 102), regionalChoices).groups.isEmpty())
             // Re-read linked permissions even for a warm catalogue: no async-observer grace.
-            db.sourceDao().unlink(7, 102)
+            // Core 1.0.72 has no unlink DAO; remove the profile link directly.
+            db.useWriterConnection { it.execSQL("DELETE FROM profile_source WHERE profileId = 7 AND sourceId = 102") }
             assertFalse(restarted.library(7, listOf(101, 102), regionalChoices).groups.any { g -> g.variants.any { it.sourceId == 102L } })
             db.sourceDao().link(ProfileSourceCrossRef(7, 102))
             val source = db.sourceDao().observeForProfile(7).first().first { it.id == 101L }
