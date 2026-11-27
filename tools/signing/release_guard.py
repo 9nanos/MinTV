@@ -114,7 +114,9 @@ if __name__ == '__main__':
         sys.exit('BLOCKED: ' + str(error) + '. No signing attempted.')
     except urllib.error.HTTPError as error:
         import sys
-        sys.exit(f'BLOCKED: GitHub preflight HTTP {error.code}; check CI/environment read access. No signing attempted.')
+        import urllib.parse
+        endpoint = urllib.parse.urlsplit(error.url or '').path  # repo-relative API path only; no query or token
+        sys.exit(f'BLOCKED: GitHub preflight HTTP {error.code} at {endpoint}; check CI/environment read access. No signing attempted.')
     except (KeyError, OSError, urllib.error.URLError):
         import sys
         sys.exit('BLOCKED: exact-commit checks, certificate pins or protected environment are not ready. See the Mac setup guide. No signing attempted.')
