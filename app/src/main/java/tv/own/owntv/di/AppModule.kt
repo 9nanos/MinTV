@@ -197,9 +197,11 @@ val appModule = module {
     viewModelOf(::FolderSubtitleViewModel)
     viewModelOf(::DownloadsViewModel)
     viewModelOf(::RecordingsViewModel)
-    // 22 constructor parameters — spelled out like LiveViewModel, at the edge of what viewModelOf generates.
+    // 24 constructor parameters — spelled out like LiveViewModel, at the edge of what viewModelOf generates.
     viewModel {
         EpgViewModel(
+            get(),
+            get(),
             get(),
             get(),
             get(),

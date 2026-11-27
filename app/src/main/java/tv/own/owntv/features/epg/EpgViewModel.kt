@@ -101,6 +101,9 @@ class EpgViewModel(
     private val profileDao: ProfileDao,
     private val guideMatches: tv.own.owntv.core.epg.GuideMatches,
     private val epgSourceStore: tv.own.owntv.core.epg.EpgSourceStore,
+    /** Min TV's manual "Uppdatera EPG" reads each playlist's own guide and the standalone guides. */
+    private val sourceRepository: tv.own.owntv.core.repository.SourceRepository,
+    private val epgRepository: tv.own.owntv.core.repository.EpgRepository,
     private val connectivity: ConnectivityObserver,
     private val customize: CustomizationStore,
     private val sourceDao: SourceDao,

@@ -1,5 +1,7 @@
 package tv.own.owntv.features.shell
 
+import androidx.tv.material3.Text
+import tv.own.owntv.ui.theme.OwnTVTheme
 import androidx.compose.runtime.saveable.rememberSaveable
 
 import androidx.activity.compose.BackHandler
@@ -2141,3 +2143,6 @@ private fun railDetail(section: MainSection, d: RailDetails): String? = when (se
 
 /** How recently ◀ / ▶ or [focusRail] must have happened for a rail visit to open the rail. */
 private const val RAIL_KEY_WINDOW_MS = 400L
+
+/** Screens drawn for Stage own the whole canvas (Min TV keeps this upstream 5.1 list; Sports too). */
+private val StageSections = setOf(MainSection.SEARCH, MainSection.HOME, MainSection.LIVE_TV, MainSection.EPG, MainSection.MOVIES, MainSection.SERIES, MainSection.DOWNLOADS, MainSection.MORE, MainSection.SETTINGS, MainSection.SPORTS)

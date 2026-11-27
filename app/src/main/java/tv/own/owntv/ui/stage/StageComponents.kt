@@ -797,8 +797,6 @@ fun StagePoster(
     onLongClick: (() -> Unit)? = null,
     /** The Separate grid's smaller posters: 15.5 px title, the 66×28 chip. */
     compact: Boolean = false,
-    progress: Float? = null,
-    watched: Boolean = false,
     /** More › Favourites: a muted line under the title ("Movie"); the title is then 18/700 white. */
     line: String? = null,
     /** How far the title has been watched: the 6 px accent bar along the artwork's bottom, as on `.ep`. */

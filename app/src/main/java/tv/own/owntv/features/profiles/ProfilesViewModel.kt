@@ -111,10 +111,12 @@ class ProfilesViewModel internal constructor(
         }
     }
 
-    fun createAndActivate(name: String, avatarId: Int, isKids: Boolean, pin: String?, defaultName: String, onCreated: (Long) -> Unit) {
+    fun createAndActivate(name: String, avatarId: Int, isKids: Boolean, pin: String?, defaultName: String,
+        picture: java.io.File? = null, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
             val id = manager.create(name, avatarId, isKids, pin, defaultName)
             sports.save(id, tv.own.owntv.features.home.SportPreferences())
+            if (picture != null) setPictureNow(id, picture)
             manager.switchTo(id)
             onCreated(id)
         }

@@ -670,8 +670,6 @@ fun MoviesScreen(
                                         progress = movieProgress[movie.id]?.takeIf { it.durationMs > 0 && !vm.isMovieCompleted(it) }?.let { it.positionMs.toFloat() / it.durationMs },
                                         watched = movieProgress[movie.id]?.let(vm::isMovieCompleted) == true,
                                         width = 196.mpx, height = 294.mpx,
-                                        progress = prog?.takeIf { it.durationMs > 0 }?.let { it.positionMs.toFloat() / it.durationMs },
-                                        watched = done,
                                         onClick = { contextMovieId = movie.id; detailsMovie = movie }, // Min TV: details first
                                         onLongClick = { openMenu(movie, index) },
                                         modifier = Modifier
@@ -848,8 +846,6 @@ fun MoviesScreen(
                                     watched = movieProgress[movie.id]?.let(vm::isMovieCompleted) == true,
                                     width = posterW, height = posterW * 1.5f,
                                     compact = true,
-                                    progress = prog?.takeIf { it.durationMs > 0 }?.let { it.positionMs.toFloat() / it.durationMs },
-                                    watched = done,
                                     onClick = { contextMovieId = movie.id; detailsMovie = movie }, // Min TV: details first
                                     onLongClick = { openMenu(movie, index) },
                                     modifier = Modifier

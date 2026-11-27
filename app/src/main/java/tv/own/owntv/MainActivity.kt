@@ -95,6 +95,7 @@ open class MainActivity : ComponentActivity() {
     private var startupSettled = false
 
     private val player: tv.own.owntv.player.OwnTVPlayer by inject()
+    private val previewEngine: tv.own.owntv.player.LivePreviewEngine by inject() // Min TV foreground policy
     private val engines: tv.own.owntv.player.PlaybackEngines by inject()
     private val visibility: tv.own.owntv.core.player.PlaybackVisibilityWatch by inject()
     private val handOff: tv.own.owntv.features.pip.AppHandOff by inject()
@@ -167,10 +168,6 @@ open class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    override fun onResume() {
-        super.onResume()
-        handOff.onActivityResumed()
-    }
 
     /** Every screen this activity opens (a trailer in YouTube, a system settings page) is a hand-off. */
     override fun startActivity(intent: Intent, options: Bundle?) {
@@ -188,6 +185,7 @@ open class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        handOff.onActivityResumed()
         // A normal app-icon intent must suppress restoration before it reconnects anything.
         // Ordinary task/screensaver return still resumes the existing fullscreen session.
         foregroundPolicy.onResume(allowPlaybackResume)
@@ -471,8 +469,8 @@ open class MainActivity : ComponentActivity() {
                             // Adding a profile from the gate → onboard the new profile.
                             addingProfile -> tv.own.owntv.features.profiles.ProfileEditorDialog(
                                 initial = null,
-                                onConfirm = { name, avatar, kids, pin ->
-                                    profilesVm.createAndActivate(name, avatar, kids, pin, getString(R.string.setup_default_profile), gateSession::completeAddingProfile)
+                                onConfirm = { name, avatar, kids, pin, picture ->
+                                    profilesVm.createAndActivate(name, avatar, kids, pin, getString(R.string.setup_default_profile), picture, gateSession::completeAddingProfile)
                                 },
                                 onDismiss = gateSession::cancelAddingProfile,
                                 takenNames = profiles.map { it.name.trim().lowercase() }.toSet(),
