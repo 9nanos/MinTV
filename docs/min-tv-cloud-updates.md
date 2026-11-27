@@ -14,7 +14,7 @@ The owner explicitly chose the SAME permanent certificate for QA and Stable.
 This supersedes the earlier separate-key plan. Both committed public pins are:
 
 ```text
-D2:0B:2F:58:F4:E1:2B:95:6E:1E:1D:C4:0E:47:87:3D:9B:9E:E6:A6:66:A2:DE:1A:F2:A6:B8:AC:3D:40:54:7C
+83:78:A9:46:5A:9A:03:20:DE:F9:9B:2F:C8:65:7E:F4:46:BC:CB:7D:C4:07:35:33:40:CB:A3:C3:48:BD:D1:C2
 ```
 
 GitHub returns **404** for `mintv-sign.yml`: the workflow exists only in this

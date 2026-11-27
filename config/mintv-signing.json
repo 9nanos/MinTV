@@ -2,11 +2,11 @@
   "schema": 1,
   "qa": {
     "application_id": "tv.mintv.app.qa",
-    "certificate_sha256": "d20b2f58f4e12b956e1e1dc40e47873d9b9ee6a666a2de1af2a6b8ac3d40547c"
+    "certificate_sha256": "8378a9465a9a0320def99b2fc8657ef446bccb7dc407353340cba3c348bdd1c2"
   },
   "stable": {
     "application_id": "tv.mintv.app",
-    "certificate_sha256": "d20b2f58f4e12b956e1e1dc40e47873d9b9ee6a666a2de1af2a6b8ac3d40547c",
+    "certificate_sha256": "8378a9465a9a0320def99b2fc8657ef446bccb7dc407353340cba3c348bdd1c2",
     "installed_v01_certificate_sha256": null,
     "installed_v01_version_code": null,
     "initial_adoption": "owner-approved-clean-install"
