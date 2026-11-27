@@ -14,7 +14,10 @@ class NativeNavigationTest {
         assertEquals(TopDestination.VOD, topDestination(MainSection.SERIES))
         for (section in listOf(MainSection.MORE, MainSection.SETTINGS, MainSection.DOWNLOADS))
             assertEquals(TopDestination.PROFILE, topDestination(section))
-        val aliases = TopDestination.entries.flatMap { nativeRoutes(it, all) }.toSet() + MainSection.SEARCH
+        // Upstream 5.2's Sports section belongs under Min TV's Sport destination. Until v0.20 M2 folds it
+        // into the Sport tab it is opened from Home's live sports row, like Search from its key: an alias.
+        assertEquals(TopDestination.SPORT, topDestination(MainSection.SPORTS))
+        val aliases = TopDestination.entries.flatMap { nativeRoutes(it, all) }.toSet() + MainSection.SEARCH + MainSection.SPORTS
         assertEquals(all, aliases)
     }
     @Test fun sportUsesPresentationOnlyAndHomeDeepLinkStillMapsHome() {
