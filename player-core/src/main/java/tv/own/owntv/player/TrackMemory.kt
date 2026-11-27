@@ -49,7 +49,8 @@ internal object TrackMemory {
 internal class TrackRecall(val key: String) {
     private var loaded = false
     private var audio: String? = null
-    private val subtitle = PendingSubtitleRecall()
+    /** Read by the engine switch, which carries an explicit "subtitles off" to ExoPlayer. */
+    val subtitle = PendingSubtitleRecall()
     var audioDone = false
 
     /** The database answered (or the "original language" stood in for it). */
