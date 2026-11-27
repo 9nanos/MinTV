@@ -20,7 +20,7 @@ val playerModule = module {
     // tile, and is the only thing that owns more than one at a time.
     single { tv.own.owntv.player.LiveEnginePool { livePreviewEngine() } }
     // Muted ExoPlayer engine for the Home hero preview. The last argument lets it ask whether mpv is
-    // already streaming, so a one-session provider isn't locked out by the hero preview (F19d).
+    // already streaming, so a one-session provider isn't locked out by the hero preview.
     // Resolved lazily inside the lambda to keep this free of a construction-order dependency.
     single { HeroPreviewEngine(androidContext(), get(), get(), streamInUse = { get<OwnTVPlayer>().hasActiveStream }) }
     // Every engine above, so Home / the screensaver / memory pressure reach all of them in one call —
@@ -33,9 +33,21 @@ val playerModule = module {
             heroPreview = get(),
         )
     }
+    // Whether the app can be seen and heard: the activity started and the television still connected.
+    // MainActivity feeds it and frees / restores the engines on its changes.
+    single { tv.own.owntv.core.player.PlaybackVisibilityWatch(androidContext()) }
+    // A screen of another app that OwnTV opens itself: no picture-in-picture, the same stop as Home.
+    single {
+        val engines = get<tv.own.owntv.player.PlaybackEngines>()
+        tv.own.owntv.features.pip.AppHandOff(
+            holdWindow = get<tv.own.owntv.features.pip.PictureInPicture>()::holdWindow,
+            stopPlayback = engines::onAppBackgrounded,
+            restorePlayback = engines::onAppForegrounded,
+        )
+    }
     // Audio focus (duck-don't-pause) + the system MediaSession, driven by whichever engine is playing.
     single { tv.own.owntv.player.PlaybackSession(androidContext()) }
-    // N17 — ends itself when the session detaches; what "stop" means is assigned by the shell.
+    // Ends itself when the session detaches; what "stop" means is assigned by the shell.
     single { tv.own.owntv.player.ScreenOff(androidContext()) }
     single { tv.own.owntv.player.SleepTimer(active = get<tv.own.owntv.player.PlaybackSession>().active, screenOff = get(), itemEnd = get<OwnTVPlayer>()) }
     // Bridges the playing item to the OpenSubtitles search. Bound here rather than with the rest of

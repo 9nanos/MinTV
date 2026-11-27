@@ -26,3 +26,7 @@ def verify_visibility(root: ET.Element) -> None:
             for node in root.findall("queries/intent/data")]
     assert {"scheme": "s0undtv", "host": "stream"} in data, "Missing public S0undTV stream visibility"
     assert {"scheme": "https", "host": "www.twitch.tv"} in data, "Missing public Twitch channel visibility"
+    # Voice search (upstream 5.2.2) hands listening to the system speech recogniser: an action query,
+    # no package and no microphone permission.
+    actions = {a.get(ANDROID + "name") for a in root.findall("queries/intent/action")}
+    assert "android.speech.action.RECOGNIZE_SPEECH" in actions, "Missing system speech recogniser visibility"

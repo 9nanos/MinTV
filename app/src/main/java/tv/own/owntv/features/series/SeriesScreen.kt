@@ -2,7 +2,10 @@
 
 package tv.own.owntv.features.series
 
+import tv.own.owntv.ui.components.onDpadLeft
+import tv.own.owntv.ui.stage.backdropLeftWash
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.graphicsLayer
@@ -12,8 +15,10 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
+import tv.own.owntv.features.categorylock.focusListAfterSheet
 import tv.own.owntv.features.live.LiveCategories
-import tv.own.owntv.features.live.ProviderTags
+import tv.own.owntv.core.live.ProviderTags
+import tv.own.owntv.core.live.hasFixedOrder
 import tv.own.owntv.features.live.edgeScrollSpec
 import tv.own.owntv.features.shell.components.VodCinematicBackdrop
 import tv.own.owntv.features.shell.components.VodDetailsCard
@@ -33,6 +38,7 @@ import tv.own.owntv.features.shell.components.VodOptionsMenu
 import tv.own.owntv.features.shell.components.VodPosterArt
 import tv.own.owntv.features.shell.components.VodSortMenu
 import tv.own.owntv.features.shell.components.VodSortTool
+import tv.own.owntv.features.shell.components.VodFixedSortTool
 import tv.own.owntv.features.shell.components.VodStepper
 import tv.own.owntv.features.shell.components.VodTitleInfo
 import tv.own.owntv.features.shell.components.cinematicQualityBadges
@@ -53,11 +59,9 @@ import tv.own.owntv.ui.stage.StageMenuItem
 import tv.own.owntv.ui.stage.StagePoster
 import tv.own.owntv.ui.stage.StageProgress
 import tv.own.owntv.ui.stage.StageRow
-import tv.own.owntv.ui.stage.drawBoxShadow
 import tv.own.owntv.ui.theme.dissolveEdges
 import tv.own.owntv.ui.theme.gradientWash
 import tv.own.owntv.ui.theme.mpxSp
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.aspectRatio
 import tv.own.owntv.ui.stage.StageSearchField
 import tv.own.owntv.ui.stage.StageSegmented
@@ -95,6 +99,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -111,7 +116,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -130,24 +135,18 @@ import androidx.tv.material3.Text
 import tv.own.owntv.R
 import tv.own.owntv.features.discovery.DiscoveryScreen
 import tv.own.owntv.core.metadata.MetadataType
-import tv.own.owntv.features.customize.categoryRestoreSummary
-import tv.own.owntv.features.customize.CategoryRestorePlan
-import androidx.compose.runtime.produceState
 import tv.own.owntv.core.customize.CustomizeKeys
 import tv.own.owntv.core.database.entity.ContentOrderEntity
-import tv.own.owntv.core.database.entity.DownloadEntity
 import tv.own.owntv.core.database.entity.EpisodeEntity
 import tv.own.owntv.core.database.entity.SeriesEntity
 import tv.own.owntv.features.customize.MoveToCategoryDialog
 import tv.own.owntv.ui.components.TextInputDialog
-import tv.own.owntv.core.model.DownloadStatus
 import tv.own.owntv.features.live.displayLabel
 import tv.own.owntv.core.settings.PanelSection
 import tv.own.owntv.features.settings.data.computePanelWidths
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.features.settings.rememberPanelShares
-import tv.own.owntv.features.shell.components.CategoryContextMenu
-import tv.own.owntv.features.shell.components.CategoryRail
+import tv.own.owntv.features.shell.components.RailCategoryMenu
 import tv.own.owntv.ui.components.MoveOrderOverlay
 import tv.own.owntv.ui.components.InAppToast
 import tv.own.owntv.ui.components.rememberInAppToast
@@ -155,14 +154,12 @@ import tv.own.owntv.core.model.ContentMenu
 import tv.own.owntv.ui.components.MenuAction
 import tv.own.owntv.ui.components.OwnTVIcon
 import tv.own.owntv.ui.components.OwnTVSpinner
-import tv.own.owntv.ui.components.ProgressRing
 import tv.own.owntv.ui.components.ResumeDialog
 import tv.own.owntv.ui.components.SetTmdbNameDialog
 import tv.own.owntv.ui.components.TrailerPlayerScreen
 import tv.own.owntv.ui.components.chNavPaging
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import tv.own.owntv.ui.components.formatCount
 import tv.own.owntv.ui.components.gridFocusTarget
 import tv.own.owntv.ui.format.localizedInteger
 import tv.own.owntv.ui.format.rememberAirDateFormatter
@@ -172,9 +169,9 @@ import tv.own.owntv.core.live.LiveKey
 fun SeriesScreen(
     onFullscreen: () -> Unit,
     onChildFocused: () -> Unit,
+    modifier: Modifier = Modifier,
     restoreFocus: Boolean = false,
     onRestored: () -> Unit = {},
-    modifier: Modifier = Modifier,
     /**
      * Pins the grid to one folder and takes the category rail away — how More → Favourites and
      * More → History show shows without a second copy of this grid existing.
@@ -200,11 +197,18 @@ fun SeriesScreen(
 
     // Track leaving a show so the grid can put focus back on the poster you came from (the episode
     // view that held focus is unmounted on Back — focus would otherwise die and land on the sidebar).
+    // The show itself, not "the selected one": the grid's way in can focus the first poster before
+    // the opened one is laid out, and that makes the first poster the selected show.
+    var returnToShowId by remember { mutableStateOf<Long?>(null) }
+    // Min TV: closing a show opened from outside the grid tells the caller (it returns to its origin).
     var returnFromShow by remember { mutableStateOf(false) }
     LaunchedEffect(openedSeries) {
-        if (openedSeries != null) returnFromShow = true
-        else if (returnFromShow) onSeriesClosed?.invoke()
+        openedSeries?.let { returnToShowId = it.id; returnFromShow = true }
+        if (openedSeries == null && returnFromShow) onSeriesClosed?.invoke()
     }
+    // Where that show sat in the titles, when it was opened from them: the list reloads from its
+    // first page on the way back, so a show further down is found only after scrolling there again.
+    var returnToIndex by remember { mutableIntStateOf(-1) }
 
     if (openedSeries != null) {
         EpisodeView(
@@ -223,11 +227,22 @@ fun SeriesScreen(
             vm = vm,
             onFullscreen = onFullscreen,
             onChildFocused = onChildFocused,
-            restoreSelected = returnFromShow,
-            onRestoredSelected = { returnFromShow = false },
+            restoreShowId = returnToShowId,
+            restoreShowIndex = returnToIndex,
+            onOpenAt = { returnToIndex = it },
+            onRestoredSelected = { returnToShowId = null; returnToIndex = -1 },
             lockedKey = lockedKey,
             onEntryHook = onEntryHook,
             modifier = modifier,
+        )
+    }
+    vm.bulkDownloadAsk.collectAsStateWithLifecycle().value?.let { ask ->
+        tv.own.owntv.features.settings.ConfirmDialog(
+            title = pluralStringResource(R.plurals.content_download_episodes_confirm, ask.episodes, ask.episodes),
+            message = stringResource(R.string.content_download_episodes_confirm_message),
+            onConfirm = { vm.answerBulkDownload(true) },
+            onDismiss = { vm.answerBulkDownload(false) },
+            confirmLabel = R.string.content_download,
         )
     }
 }
@@ -237,7 +252,9 @@ private fun SeriesGrid(
     onFullscreen: () -> Unit,
     vm: SeriesViewModel,
     onChildFocused: () -> Unit,
-    restoreSelected: Boolean = false,
+    restoreShowId: Long? = null,
+    restoreShowIndex: Int = -1,
+    onOpenAt: (Int) -> Unit = {},
     onRestoredSelected: () -> Unit = {},
     /** Non-null while this grid is a More screen's stage — see [SeriesScreen]. */
     lockedKey: LiveKey? = null,
@@ -248,6 +265,7 @@ private fun SeriesGrid(
     val refetchingTmdbMessage = stringResource(R.string.content_refetching_tmdb)
     val researchingTmdbMessage = stringResource(R.string.content_researching_tmdb)
     val railItems by vm.railItems.collectAsStateWithLifecycle()
+    val lockVm: tv.own.owntv.features.categorylock.CategoryLockViewModel = koinViewModel()
     val selectedKey by vm.selectedKey.collectAsStateWithLifecycle()
     val resumeVm: HomeViewModel = koinViewModel()
     val resumeState by resumeVm.uiState.collectAsStateWithLifecycle()
@@ -256,6 +274,7 @@ private fun SeriesGrid(
     val resumeItems = resumeState.continueSeries.takeIf { resumeState.profileId == resumeProfileId }.orEmpty().take(8)
     val count by vm.count.collectAsStateWithLifecycle()
     val favoriteIds by vm.favoriteIds.collectAsStateWithLifecycle()
+    val seriesProgress by vm.seriesProgress.collectAsStateWithLifecycle()
     val searchQuery by vm.searchQuery.collectAsStateWithLifecycle()
     val sortMode by vm.sortMode.collectAsStateWithLifecycle()
     val storedViewMode by vm.viewMode.collectAsStateWithLifecycle()
@@ -274,23 +293,23 @@ private fun SeriesGrid(
     var railFocusRow by remember { mutableStateOf<Int?>(null) }
     val railFocus = remember { FocusRequester() }
     var contextSeries by remember { mutableStateOf<tv.own.owntv.core.database.entity.SeriesEntity?>(null) }
-    // The series the "Move to category…" flow is moving (issue #87), with the origin captured at
+    // The series the "Move to category…" flow is moving, with the origin captured at
     // menu-open time (the rail can't change under the modal, but capturing is still safer).
     var moveItem by remember { mutableStateOf<tv.own.owntv.core.database.entity.SeriesEntity?>(null) }
     var moveOriginKey by remember { mutableStateOf<String?>(null) }
     var moveOriginName by remember { mutableStateOf<String?>(null) }
     var creatingCategory by remember { mutableStateOf(false) }
-    // "Set TMDB name" dialog target (§11.2 U5b); null = closed.
+    // "Set TMDB name" dialog target; null = closed.
     var setTmdbNameSeries by remember { mutableStateOf<tv.own.owntv.core.database.entity.SeriesEntity?>(null) }
-    // In-app trailer playback (§7.3 U4); non-null = fullscreen player open with this YouTube key.
+    // In-app trailer playback; non-null = fullscreen player open with this YouTube key.
     var trailerVideoKey by remember { mutableStateOf<String?>(null) }
     var trailerTitle by remember { mutableStateOf<String?>(null) }
-    // Fullscreen TMDB details window (§11.1); null = closed.
+    // Fullscreen TMDB details window; null = closed.
     var detailsSeries by remember { mutableStateOf<tv.own.owntv.core.database.entity.SeriesEntity?>(null) }
     // Id + list position of the series the context menu was opened on. The id re-focuses the same item
     // when it survives (Favourite/Download/Cancel); when the item is REMOVED (Remove from history, or
     // un-Favourite while on the Favorites category), it's gone from the paged list, so we re-focus the
-    // nearest surviving neighbour by position instead of escaping to the CategoryRail.
+    // nearest surviving neighbour by position instead of escaping to the category rail.
     var contextSeriesId by remember { mutableStateOf<Long?>(null) }
     var contextSeriesIndex by remember { mutableStateOf(-1) }
     val contextFocus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -371,31 +390,53 @@ private fun SeriesGrid(
     // Back from a show's episodes: scroll the grid to the poster you opened, then focus it. It may be
     // far down and not composed, so without scrolling the focus request fails and focus falls to the
     // sidebar (the same scroll-then-focus fix Movies uses).
-    LaunchedEffect(restoreSelected, series.itemCount) {
-        if (restoreSelected && series.itemCount > 0) {
-            val sel = selectedSeries
-            val idx = if (sel != null) series.itemSnapshotList.items.indexOfFirst { it.id == sel.id } else -1
-            if (idx >= 0) {
-                // Scroll the layout that is actually on screen. Scrolling only the grid state left the
-                // LIST view unscrolled, so a show further down was never composed, the focus request
-                // failed, and focus fell out to the CategoryRail instead of the show you came back from.
-                scrollToIndex(idx)
-                // The shell is switching the canvas back from the episodes page at the same time, and a
-                // single attempt lost focus to the category column. Keep watching for about 0.7 s and
-                // take focus back to the show whenever the titles do not hold it.
-                repeat(40) {
-                    if (!gridPaneFocused && !runCatching { gridSelFocus.requestFocus() }.getOrDefault(false)) {
-                        runCatching { firstItemFocus.requestFocus() }
-                    }
+    LaunchedEffect(restoreShowId, series.itemCount) {
+        val showId = restoreShowId ?: return@LaunchedEffect
+        if (series.itemCount == 0) return@LaunchedEffect
+        // By position, placeholders included: `items` drops pages not loaded yet and shifts the index.
+        var idx = series.itemSnapshotList.indexOfFirst { it?.id == showId }
+        if (idx < 0 && restoreShowIndex in 0 until series.itemCount) {
+            // Its page is not loaded yet: scrolling to where it sat loads it; wait up to about a second.
+            scrollToIndex(restoreShowIndex)
+            repeat(60) {
+                if (idx < 0) {
                     withFrameNanos { }
+                    idx = series.itemSnapshotList.indexOfFirst { it?.id == showId }
                 }
-            } else {
-                runCatching { firstItemFocus.requestFocus() }
             }
-            onRestoredSelected()
         }
+        val show = series.itemSnapshotList.getOrNull(idx)
+        if (show != null) {
+            // Scroll the layout that is actually on screen. Scrolling only the grid state left the
+            // LIST view unscrolled, so a show further down was never composed, the focus request
+            // failed, and focus fell out to the category rail instead of the show you came back from.
+            scrollToIndex(idx)
+            // The shell is switching the canvas back from the episodes page at the same time, and its
+            // way in may already have put focus on the first poster and made that the selected show.
+            // Make this show the selected one again (gridSelFocus follows it), then keep taking focus
+            // back to it for about 0.7 s, the first poster standing in only while it is not laid out.
+            var landed = false
+            repeat(40) {
+                if (!landed) {
+                    if (selectedSeries?.id != show.id) vm.onSeriesFocused(show)
+                    if (rememberSeries) perCategorySeriesIds[selectedKey] = show.id
+                    // A stand-in brings itself into view, scrolling this show out of the layout again.
+                    if (it > 0) scrollToIndex(idx)
+                }
+                withFrameNanos { }
+                if (!landed || !gridPaneFocused) {
+                    // Landed only on this show: a stand-in focused meanwhile has made itself the selected
+                    // show, and gridSelFocus then points at it — the next frame selects this one again.
+                    landed = runCatching { gridSelFocus.requestFocus() }.getOrDefault(false) && selectedSeries?.id == show.id
+                    if (!landed && !gridPaneFocused) runCatching { firstItemFocus.requestFocus() }
+                }
+            }
+        } else {
+            runCatching { firstItemFocus.requestFocus() }
+        }
+        onRestoredSelected()
     }
-    // Closing the long-press context menu must return focus inside this pane, never the CategoryRail.
+    // Closing the long-press context menu must return focus inside this pane, never the category rail.
     //   - Item still present (Favourite toggle / Download / Cancel): re-focus the same item by id.
     //   - Item removed (Remove from history, or un-Favourite on the Favorites category): the paged
     //     list no longer contains it, so focus the NEAREST surviving neighbour by position (the item
@@ -446,7 +487,7 @@ private fun SeriesGrid(
         runCatching { gridSelFocus.requestFocus() }.getOrDefault(false) ||
             runCatching { contextFocus.requestFocus() }.getOrDefault(false) ||
             runCatching { firstItemFocus.requestFocus() }.getOrDefault(false)
-    // From the categories to the shows: the remembered one, else the first; the search field when empty.
+    // From the categories to the shows: the remembered one, else the first; a locked one's Enter PIN button; else the search field.
     fun focusTitles() {
         val targetId = if (rememberSeries) perCategorySeriesIds[selectedKey] ?: selectedSeries?.id else selectedSeries?.id
         scope.launch {
@@ -463,7 +504,7 @@ private fun SeriesGrid(
                     }
                     withFrameNanos { }
                 }
-            } else {
+            } else if (!runCatching { firstItemFocus.requestFocus() }.getOrDefault(false)) {
                 runCatching { listSearchFocus.requestFocus() }
             }
         }
@@ -477,23 +518,23 @@ private fun SeriesGrid(
         if (!cinematic && lockedKey == null) { railFocusRow = selectedIndex; true } else focusCurrentTitle()
     }
 
-    // Manual panel widths (Settings → Panel Width Adjustment), mapped onto Stage: Separate = the column,
+    // Manual panel widths (Settings → Layout → Panel widths), mapped onto Stage: Separate = the column,
     // the posters and the details card (Poster panel 0% = no card); Cinematic = the sheet and the hero height.
     val panelShares = rememberPanelShares(PanelSection.SERIES, settingsVm)
     val cinematicSheetPct by settingsVm.cinematicSheetWidth(PanelSection.SERIES).collectAsStateWithLifecycle()
     val selectedMeta = selectedSeriesMeta?.takeIf { it.seriesId == selectedSeries?.id }?.cache
-    val titleInfo = selectedSeries?.let { seriesTitleInfo(it, selectedMeta, metadataMode.tmdbWins) }
+    val titleInfo = selectedSeries?.takeUnless { selectedItem?.sealed == true || series.itemCount == 0 }?.let { seriesTitleInfo(it, selectedMeta, metadataMode.tmdbWins) }
     val (categoryEntries, groupsHeading) = vodCategoryEntries(railItems, railCounts, playlistMarks, series = true)
     val headerLabel = if (selectedItem?.key is LiveKey.Folder || selectedItem?.key is LiveKey.Custom) ProviderTags.parse(selectedLabel).name else selectedLabel
 
-    // Back closes the sheet: one level out.
-    androidx.activity.compose.BackHandler(enabled = categoriesOpen) { categoriesOpen = false; focusCurrentTitle() }
+    // Back closes the sheet: one level out, to the current show (or the list's way in when a lock emptied it).
+    BackHandler(enabled = categoriesOpen) { categoriesOpen = false; focusListAfterSheet(scope, ::focusCurrentTitle, { gridPaneFocused }, ::focusTitles) }
     LaunchedEffect(categoriesOpen) {
         if (categoriesOpen) { withFrameNanos { }; runCatching { railFocus.requestFocus() } }
         // However the sheet closed (Back, a pick, ◀ to the rail), the next one starts fresh.
         else sheetHadFocus = false
     }
-    // CH± in the categories moves the highlight only; OK picks (owner, 2026-10-01).
+    // CH± in the categories moves the highlight only; OK picks.
     var catFocusIndex by remember { mutableStateOf<Int?>(null) }
     val categoriesModifier = Modifier
         .onFocusChanged {
@@ -501,7 +542,7 @@ private fun SeriesGrid(
             // The sheet closes when focus leaves it (◀ to the rail) — not while its own menus are open,
             // and not on the "unfocused" report every node gets when it first attaches.
             if (it.hasFocus) sheetHadFocus = true
-            else if (sheetHadFocus && categoriesOpen && contextCategory == null && categoryMoveState == null) {
+            else if (sheetHadFocus && categoriesOpen && contextCategory == null && categoryMoveState == null && !lockVm.prompting) {
                 sheetHadFocus = false
                 categoriesOpen = false
             }
@@ -516,8 +557,10 @@ private fun SeriesGrid(
             onJumpToIndex = { idx -> catFocusIndex = idx; railFocusRow = idx },
         )
     val onCategorySelect: (Int) -> Unit = { idx ->
-        railItems.getOrNull(idx)?.let { vm.select(it.key) }
-        if (categoriesOpen) { categoriesOpen = false; focusTitles() }
+        val item = railItems.getOrNull(idx)
+        item?.let { vm.select(it.key) }
+        if (item?.sealed == true) lockVm.open(tv.own.owntv.core.model.MediaType.SERIES, item.key)
+        else if (categoriesOpen) { categoriesOpen = false; focusTitles() }
     }
     val onCategoryLongSelect: (Int) -> Unit = { idx ->
         railItems.getOrNull(idx)?.let { item ->
@@ -596,21 +639,23 @@ private fun SeriesGrid(
             }
         }
         .focusGroup()
-    // ◀ from the empty search field opens the categories, as from the titles.
-    val searchLeft = Modifier.onPreviewKeyEvent { e ->
-        if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft && searchQuery.isEmpty() && lockedKey == null) {
-            if (cinematic) categoriesOpen = true else runCatching { railFocus.requestFocus() }
-            true
-        } else false
-    }
-    val emptyText = if (searchQuery.isNotBlank()) stringResource(R.string.content_no_series_found, searchQuery.trim()) else stringResource(R.string.content_no_series_here)
+    // ◀ from the search field opens the categories, as from the titles — with a query too (a search that
+    // found nothing here may be in another category), but not while typing, where ◀ moves the cursor.
+    // A locked category's Enter PIN opens them the same way.
+    var searchEditing by remember { mutableStateOf(false) }
+    fun openCategories() { if (cinematic) categoriesOpen = true else runCatching { railFocus.requestFocus() } }
+    val searchLeft = Modifier.onDpadLeft({ !searchEditing && lockedKey == null }) { openCategories() }
+    val listPin = tv.own.owntv.features.categorylock.rememberListPinFocus(series.itemCount, firstItemFocus, { scrollToIndex(0) }) { focusTitles() }
+    val sealed = selectedItem?.sealed == true
+    val onEnterPin: () -> Unit = { selectedItem?.let { listPin.askedFromList(); lockVm.open(tv.own.owntv.core.model.MediaType.SERIES, it.key) } }
+    val emptyText = if (sealed) stringResource(R.string.content_category_locked_placeholder) else if (searchQuery.isNotBlank()) stringResource(R.string.content_no_series_found, searchQuery.trim()) else stringResource(R.string.content_no_series_here)
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .onFocusChanged { if (it.hasFocus) onChildFocused() },
     ) {
-        // Horizontal geometry is a fraction of the mockup's 1920 width, so every zoom reflows.
+        // Horizontal geometry is a fraction of the 1920 design width, so every zoom reflows.
         val screenW = maxWidth
         fun fx(px: Int) = screenW * (px / 1920f)
         if (cinematic && !completeLibrary && searchQuery.isBlank()) {
@@ -625,7 +670,7 @@ private fun SeriesGrid(
             Box(Modifier.fillMaxSize().then(if (categoriesOpen) Modifier.graphicsLayer { alpha = 0.36f } else Modifier)) {
                 VodCinematicBackdrop(titleInfo?.backdropUrl, series = true, Modifier.align(Alignment.TopEnd))
                 VodHeader(
-                    section = stringResource(R.string.common_nav_series), category = headerLabel, count = vodCount(true, count),
+                    section = stringResource(R.string.common_nav_series), category = headerLabel, count = vodCount(true, count).takeUnless { sealed },
                     showChevron = true, modifier = Modifier.padding(start = fx(84), top = 28.mpx).width(fx(900)),
                 )
                 titleInfo?.let { VodHero(it, Modifier.padding(start = fx(84), top = 100.mpx).width(fx(1000)).height(heroH)) }
@@ -642,8 +687,9 @@ private fun SeriesGrid(
                             query = searchQuery, onQueryChange = vm::setSearchQuery,
                             placeholder = stringResource(R.string.content_search_in, headerLabel),
                             modifier = Modifier.width(440.mpx).focusRequester(listSearchFocus).then(searchLeft),
+                            onEditingChange = { searchEditing = it },
                         )
-                        VodSortTool(sortMode, Modifier.focusRequester(sortFocus)) { sortOpen = true }
+                        VodSortTool(sortMode, selectedKey.hasFixedOrder, Modifier.focusRequester(sortFocus)) { sortOpen = true }
                         StageTool(text = stringResource(R.string.content_category_browser_title), icon = OwnTVIcon.LIST, onClick = { categoriesOpen = true })
                         Spacer(Modifier.weight(1f))
                         StageKeyHints(listOf(playHint, optionsHint, "◀" to stringResource(R.string.content_category_browser_title)))
@@ -654,10 +700,10 @@ private fun SeriesGrid(
                         }
                     }
                     if (series.itemCount == 0) {
-                        Text(emptyText, style = stageText(20, 500), color = StageColors.Muted, modifier = Modifier.padding(start = fx(84), top = 60.mpx))
+                        tv.own.owntv.features.categorylock.CategoryEmptyState(emptyText, sealed, onEnterPin, firstItemFocus, Modifier.padding(start = fx(84), top = 60.mpx), onNavigateLeft = { openCategories() })
                     } else {
                         // The 196 × 294 posters, 26 apart, as many across as fit; the grid grows downwards
-                        // (owner, 2026-10-01: the mockup's single row became a grid). Glow room on every side.
+                        // (a grid, not a single row). Glow room on every side.
                         val glowRoom = 24.mpx
                         val rowW = screenW - fx(84) - fx(64)
                         val columns = vodBrowseColumns(rowW / 1.mpx)
@@ -680,7 +726,8 @@ private fun SeriesGrid(
                                         rating = show.rating?.takeIf { it > 0 }?.let(::vodRating),
                                         line = listOfNotNull(show.year?.toString(), show.rating?.takeIf { it > 0 }?.let { stringResource(R.string.mintv_provider_rating) }).joinToString(" · ").takeIf(String::isNotBlank),
                                         width = 196.mpx, height = 294.mpx,
-                                        onClick = { vm.openSeries(show) },
+                                        progress = seriesProgress[show.id],
+                                        onClick = { onOpenAt(index); vm.openSeries(show) },
                                         onLongClick = { openMenu(show, index) },
                                         modifier = Modifier
                                             .gridFocusTarget(
@@ -707,7 +754,7 @@ private fun SeriesGrid(
                 }
             }
         } else {
-            // Separate panels (P5-05 … P5-07): the category column, the titles, the details card.
+            // Separate panels: the category column, the titles, the details card.
             val locked = lockedKey != null
             val margin = if (locked) 0.dp else fx(64)
             val rightEdge = if (locked) screenW else fx(1880)
@@ -722,7 +769,7 @@ private fun SeriesGrid(
             val top = if (locked) 0.mpx else 128.mpx
             if (!locked) {
                 VodHeader(
-                    section = stringResource(R.string.common_nav_series), category = headerLabel, count = vodCount(true, count),
+                    section = stringResource(R.string.common_nav_series), category = headerLabel, count = vodCount(true, count).takeUnless { sealed },
                     showChevron = false, modifier = Modifier.padding(start = fx(84), top = 28.mpx).width(fx(860)),
                 )
                 LiveCategories(
@@ -756,8 +803,13 @@ private fun SeriesGrid(
                         query = searchQuery, onQueryChange = vm::setSearchQuery,
                         placeholder = stringResource(R.string.content_search_in, headerLabel),
                         modifier = Modifier.weight(1f).focusRequester(listSearchFocus).then(searchLeft),
+                        onEditingChange = { searchEditing = it },
                     )
-                    StageTool(text = null, icon = OwnTVIcon.SORT, value = vodSortLabel(sortMode), trailingIcon = OwnTVIcon.CHEVRON_DOWN, onClick = { sortOpen = true }, modifier = Modifier.focusRequester(sortFocus))
+                    if (selectedKey.hasFixedOrder) {
+                        VodFixedSortTool(Modifier.focusRequester(sortFocus))
+                    } else {
+                        StageTool(text = null, icon = OwnTVIcon.SORT, value = vodSortLabel(sortMode), trailingIcon = OwnTVIcon.CHEVRON_DOWN, onClick = { sortOpen = true }, modifier = Modifier.focusRequester(sortFocus))
+                    }
                     StageSegmented(
                         options = listOf(stringResource(R.string.settings_view_grid), stringResource(R.string.settings_view_list)),
                         selected = if (viewMode == SettingsRepository.VodViewMode.LIST) 1 else 0,
@@ -775,7 +827,7 @@ private fun SeriesGrid(
                 }
                 if (series.itemCount == 0) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(emptyText, style = stageText(20, 500), color = StageColors.Muted)
+                        tv.own.owntv.features.categorylock.CategoryEmptyState(emptyText, sealed, onEnterPin, firstItemFocus, horizontalAlignment = Alignment.CenterHorizontally, onNavigateLeft = { openCategories() }.takeIf { lockedKey == null })
                     }
                 } else if (viewMode == SettingsRepository.VodViewMode.LIST) {
                     Spacer(Modifier.height(20.mpx))
@@ -793,9 +845,9 @@ private fun SeriesGrid(
                                     line = vodLine(show.year, show.rating, null),
                                     posterUrl = posterOf(show),
                                     placeholder = OwnTVIcon.SERIES,
-                                    progress = null,
+                                    progress = seriesProgress[show.id],
                                     mark = playlistMarks[show.sourceId],
-                                    onClick = { vm.openSeries(show) },
+                                    onClick = { onOpenAt(index); vm.openSeries(show) },
                                     onLongClick = { openMenu(show, index) },
                                     modifier = Modifier
                                         .gridFocusTarget(
@@ -822,7 +874,7 @@ private fun SeriesGrid(
                         }
                     }
                 } else {
-                    // 156 × 234 posters 20 apart (5 across in the mockup's 860); a wider panel gains columns.
+                    // 156 × 234 posters 20 apart (5 across in an 860 panel); a wider panel gains columns.
                     val columns = ((listW + 20.mpx) / 176.mpx).toInt().coerceAtLeast(1)
                     val posterW = (listW - 20.mpx * (columns - 1)) / columns
                     // A fixed gap under the toolbar that scrolled posters never enter (as Cinematic).
@@ -844,7 +896,8 @@ private fun SeriesGrid(
                                     line = listOfNotNull(show.year?.toString(), show.rating?.takeIf { it > 0 }?.let { stringResource(R.string.mintv_provider_rating) }).joinToString(" · ").takeIf(String::isNotBlank),
                                     width = posterW, height = posterW * 1.5f,
                                     compact = true,
-                                    onClick = { vm.openSeries(show) },
+                                    progress = seriesProgress[show.id],
+                                    onClick = { onOpenAt(index); vm.openSeries(show) },
                                     onLongClick = { openMenu(show, index) },
                                     modifier = Modifier
                                         .gridFocusTarget(
@@ -913,7 +966,7 @@ private fun SeriesGrid(
         )
     }
 
-    // Long-press (or the remote's Menu key) on a series → ☰ Title options (P5-12).
+    // Long-press (or the remote's Menu key) on a series → ☰ Title options.
     contextSeries?.let { s ->
         val cacheForS = selectedSeriesMeta?.takeIf { it.seriesId == s.id }?.cache
         val trailerKey = if (metadataMode.enrich) cacheForS?.trailerKey else null
@@ -927,7 +980,7 @@ private fun SeriesGrid(
                 vm.toggleFavorite(s); contextSeries = null
             })
             add(MenuAction("download", stringResource(R.string.content_download_all_episodes), OwnTVIcon.DOWNLOADS, group = VodGroupLibrary) {
-                vm.downloadSeries(s); contextSeries = null
+                vm.askBulkDownload(s, null); contextSeries = null
             })
             add(MenuAction("remove_history", stringResource(R.string.content_remove_history), OwnTVIcon.HISTORY, group = VodGroupLibrary) {
                 vm.removeFromHistory(s.id); contextSeries = null
@@ -936,7 +989,7 @@ private fun SeriesGrid(
                 add(MenuAction("move", stringResource(R.string.content_move), OwnTVIcon.MOVE, group = VodGroupOrganise) {
                     contextSeries = null; vm.enterMoveMode(s, selectedKey)
                 })
-                // "Move to category…" (issue #87): send this series into a user's combined category.
+                // "Move to category…": send this series into a user's combined category.
                 add(MenuAction("move_to_category", stringResource(R.string.content_move_to_category), OwnTVIcon.FOLDER, group = VodGroupOrganise) {
                     moveOriginKey = when (val k = selectedKey) {
                         is LiveKey.Folder -> vm.folderKey(k.id)
@@ -953,7 +1006,7 @@ private fun SeriesGrid(
             add(MenuAction("tmdb_details", stringResource(R.string.content_series_details), OwnTVIcon.INFO, group = VodGroupDetails) {
                 if (cacheForS != null) { contextSeries = null; detailsSeries = s }
             })
-            // Update details (§11.2 U5a) and Set TMDB name (U5b): only while enrichment is on.
+            // Update details and Set TMDB name: only while enrichment is on.
             if (metadataMode.enrich) {
                 add(MenuAction("refetch_tmdb", stringResource(R.string.content_refetch_tmdb), OwnTVIcon.REFRESH, group = VodGroupDetails) {
                     contextSeries = null
@@ -984,7 +1037,7 @@ private fun SeriesGrid(
         )
     }
 
-    // Move to… a combined category (issue #87), incl. the "＋ New category…" name prompt.
+    // Move to… a combined category, incl. the "＋ New category…" name prompt.
     val moveTargets by vm.moveTargets.collectAsStateWithLifecycle()
     if (creatingCategory) {
         TextInputDialog(
@@ -1013,7 +1066,7 @@ private fun SeriesGrid(
         }
     }
 
-    // Fullscreen TMDB details window (§11.1) — read-only, Back exits; refocus the series on close.
+    // Fullscreen TMDB details window — read-only, Back exits; refocus the series on close.
     LaunchedEffect(detailsSeries) {
         if (detailsSeries == null && contextSeriesId != null) {
             withFrameNanos { }
@@ -1028,7 +1081,7 @@ private fun SeriesGrid(
         )
     }
 
-    // "Set TMDB name" override dialog (§11.2 U5b). Prefill once per target (saved override, else cleaned title).
+    // "Set TMDB name" override dialog. Prefill once per target (saved override, else cleaned title).
     LaunchedEffect(setTmdbNameSeries) {
         if (setTmdbNameSeries == null && contextSeriesId != null) {
             withFrameNanos { }
@@ -1058,7 +1111,7 @@ private fun SeriesGrid(
         }
     }
 
-    // In-app trailer player (§7.3 U4) — fullscreen over everything; Back/Exit closes and refocuses the series.
+    // In-app trailer player — fullscreen over everything; Back/Exit closes and refocuses the series.
     LaunchedEffect(trailerVideoKey) {
         if (trailerVideoKey == null && contextSeriesId != null) {
             withFrameNanos { }
@@ -1075,8 +1128,7 @@ private fun SeriesGrid(
             title = stringResource(R.string.content_reorder_series),
             itemNames = ms.items.map { it.name },
             activeIndex = ms.activeIndex,
-            onMoveUp = vm::moveUp,
-            onMoveDown = vm::moveDown,
+            onMove = vm::move,
             onCommit = vm::commitMove,
             onCancel = vm::cancelMove,
         )
@@ -1088,27 +1140,30 @@ private fun SeriesGrid(
             title = stringResource(R.string.content_move),
             itemNames = ms.items,
             activeIndex = ms.activeIndex,
-            onMoveUp = vm::moveCategoryUp,
-            onMoveDown = vm::moveCategoryDown,
+            onMove = vm::moveCategory,
             onCommit = vm::commitCategoryMove,
             onCancel = vm::cancelCategoryMove,
         )
     }
 
-    contextCategory?.let { item ->
-        val restorePlan by produceState<CategoryRestorePlan?>(null, item.key) { value = vm.categoryRestorePlan(item.key) }
-        CategoryContextMenu(
-            categoryName = item.displayLabel(R.string.content_category_all_series),
-            canHide = item.key is LiveKey.Folder || item.key is LiveKey.Custom,
-            canMove = item.key is LiveKey.Folder || item.key is LiveKey.Custom,
-            onHide = { vm.hideCategory(item.key); contextCategory = null },
-            onMove = { vm.enterCategoryMoveMode(item.key); contextCategory = null },
-            // Always offered: the plan is read in the background and only fills in the confirmation.
-            resetLabel = stringResource(if (item.key is LiveKey.Custom) R.string.content_category_restore_custom else R.string.content_category_restore_playlist),
-            resetLines = restorePlan?.let { categoryRestoreSummary(it) },
-            onReset = { vm.restoreCategory(item.key); contextCategory = null },
-            onDismiss = { contextCategory = null }
+    // Gone in the same frame the move list opens, so two popups never hold focus at once.
+    LaunchedEffect(categoryMoveState != null) { if (categoryMoveState != null) contextCategory = null }
+    contextCategory?.takeIf { categoryMoveState == null }?.let { item ->
+        RailCategoryMenu(
+            item, item.displayLabel(R.string.content_category_all_series), vm::categoryRestorePlan,
+            onHide = vm::hideCategory, onMove = vm::enterCategoryMoveMode, onRestore = vm::restoreCategory,
+            onToggleLock = { lockVm.toggleLock(tv.own.owntv.core.model.MediaType.SERIES, it) },
+            onSealedAction = { key, action -> lockVm.open(tv.own.owntv.core.model.MediaType.SERIES, key, action) },
+            onClose = { contextCategory = null },
         )
+    }
+    tv.own.owntv.features.categorylock.CategoryLockPrompts(
+        tv.own.owntv.core.model.MediaType.SERIES,
+        onAction = { key, action -> action.run(key, vm::hideCategory, vm::enterCategoryMoveMode, vm::restoreCategory) },
+    ) { key, opened ->
+        if (listPin.takeClose(opened)) Unit
+        else if (opened && categoriesOpen) { categoriesOpen = false; focusTitles(); listPin.openedFromCategories() }
+        else railFocusRow = railItems.indexOfFirst { it.key == key }.takeIf { it >= 0 }
     }
 
     // Restore focus to the rail when the context menu or category move mode closes.
@@ -1150,7 +1205,7 @@ private fun jsonStringList(json: String?): List<String> {
     }.getOrDefault(emptyList())
 }
 
-/** Build the fullscreen TMDB-details payload for a series, applying the §7.1/§4.1 merge precedence. */
+/** Build the fullscreen TMDB-details payload for a series, applying the source mode's merge precedence. */
 @Composable
 private fun buildSeriesDetails(
     s: SeriesEntity,
@@ -1196,6 +1251,7 @@ private fun buildEpisodeDetails(
     tmdbWins: Boolean,
 ): tv.own.owntv.features.shell.components.MediaDetailsUi {
     val still = tv.own.owntv.core.metadata.MetadataImages.backdrop(meta?.backdropPath ?: meta?.posterPath)
+        ?: ep.imageUrl?.takeIf { it.isNotBlank() }
     val title = if (tmdbWins) meta?.title?.takeIf { it.isNotBlank() } ?: episodeDisplayTitle(ep) else episodeDisplayTitle(ep)
     val plot = if (tmdbWins) meta?.overview ?: ep.plot else ep.plot?.takeIf { it.isNotBlank() } ?: meta?.overview
     val metaLine = listOfNotNull(
@@ -1214,7 +1270,7 @@ private fun buildEpisodeDetails(
 }
 
 /**
- * The series page (P6-01 … P6-04): the show's backdrop at the top right, the crumb "‹ Series ·
+ * The series page: the show's backdrop at the top right, the crumb "‹ Series ·
  * **Crunchyroll**", the title 92/800, the meta line, a two-line synopsis, the Resume / Favourite /
  * Download season / ⋯ buttons, the season tabs with the Grid | List switch and the episode order tool,
  * then the episodes as 16:9 tiles or as list rows. The header stays put; only the episodes scroll.
@@ -1233,7 +1289,9 @@ private fun EpisodeView(
     val refetchingTmdbMessage = stringResource(R.string.content_refetching_tmdb)
     val researchingTmdbMessage = stringResource(R.string.content_researching_tmdb)
     val episodes by vm.episodes.collectAsStateWithLifecycle()
+    val downloadsAllowed by vm.downloadsAllowed.collectAsStateWithLifecycle()
     val loading by vm.episodesLoading.collectAsStateWithLifecycle()
+    val episodesFailure by vm.episodesFailure.collectAsStateWithLifecycle()
     val favoriteIds by vm.favoriteIds.collectAsStateWithLifecycle()
     val downloads by vm.episodeDownloads.collectAsStateWithLifecycle()
     val selectedSeason by vm.selectedSeason.collectAsStateWithLifecycle()
@@ -1262,7 +1320,7 @@ private fun EpisodeView(
     var initialFocused by remember { mutableStateOf(false) }
     var contextEpisode by remember { mutableStateOf<EpisodeEntity?>(null) }
     var detailsEpisode by remember { mutableStateOf<EpisodeEntity?>(null) }
-    // Downloaded subtitles for the episode whose options menu is open (subtitle plan §11).
+    // Downloaded subtitles for the episode whose options menu is open.
     var contextEpisodeSubs by remember { mutableStateOf<List<tv.own.owntv.core.database.dao.LinkedSubtitle>>(emptyList()) }
     var showEpisodeDeleteSubs by remember { mutableStateOf(false) }
     var showSorting by remember { mutableStateOf(false) }
@@ -1294,7 +1352,7 @@ private fun EpisodeView(
     }
 
     // Seasons and episodes are ordered independently (the Episode order menu); both sort explicitly.
-    // Specials (season 0, #228) always come after the numbered seasons, in either order.
+    // Specials (season 0) always come after the numbered seasons, in either order.
     val seasons = episodes.map { it.seasonNumber }.distinct()
         .let { if (seriesOrder.seasonsDescending) it.sortedDescending() else it.sorted() }
         .sortedBy { it == 0 }
@@ -1310,7 +1368,7 @@ private fun EpisodeView(
         if (hideWatched) seasonEpisodes.filterNot { it.id in completedIds } else seasonEpisodes
     }
 
-    // Opening a show: focus the LAST-WATCHED episode if there is one (#22), else the first. Waits for
+    // Opening a show: focus the LAST-WATCHED episode if there is one, else the first. Waits for
     // !loading so the seeded last-watched id/season from the VM is settled. When entering via
     // player-return, mark done WITHOUT focusing — the restore below owns focus.
     LaunchedEffect(loading, seasonEpisodes.isNotEmpty(), restoreFocus) {
@@ -1382,7 +1440,7 @@ private fun EpisodeView(
 
     // What the main button plays: the next-up episode (resumed when started), else the first one.
     val target = nextUpId?.let { id -> episodes.firstOrNull { it.id == id } }
-        ?: episodes.minWithOrNull(compareBy({ it.seasonNumber }, { it.episodeNumber }))
+        ?: episodes.minWithOrNull(tv.own.owntv.core.content.EpisodeOrder.episodes)
     val targetProgress = target?.let { episodeProgress[it.id] }
         ?.takeIf { it.positionMs > 0 && it.durationMs > 0 && target.id !in completedIds }
     // The episode's own title: the provider's without its show/code prefix, TMDB's where that leaves
@@ -1390,12 +1448,17 @@ private fun EpisodeView(
     val resources = androidx.compose.ui.platform.LocalResources.current
     val epName: (EpisodeEntity, tv.own.owntv.core.database.entity.MetadataCacheEntity?) -> String = { ep, meta ->
         val tmdb = meta?.title?.takeIf { it.isNotBlank() }
-        val own = EpisodeTitles.clean(ep.name, series.name)
+        val own = tv.own.owntv.core.content.EpisodeTitles.clean(ep.name, series.name)
         (if (metadataMode.tmdbWins) tmdb ?: own else own ?: tmdb)
             ?: resources.getString(R.string.player_episode_number, ep.episodeNumber)
     }
+    // Without the provider's length, the one playback learned. "Mark as watched" replaces that progress with a
+    // 1 ms marker, which read as "0 min", so the marker is skipped and the learned length kept while open.
+    val learnedSecs = remember(series.id) { HashMap<Long, Int>() }
     val durationSecs: (EpisodeEntity) -> Int? = { ep ->
-        ep.durationSecs?.takeIf { it > 0 } ?: episodeProgress[ep.id]?.durationMs?.takeIf { it > 0 }?.let { (it / 1000).toInt() }
+        ep.durationSecs?.takeIf { it > 0 }
+            ?: episodeProgress[ep.id]?.durationMs?.takeIf { it >= 60_000 }?.let { (it / 1000).toInt() }?.also { learnedSecs[ep.id] = it }
+            ?: learnedSecs[ep.id]
     }
     // What is left of a started episode, at least a minute ("12 min left").
     val secondsLeft: (EpisodeEntity) -> Int? = { ep ->
@@ -1406,7 +1469,7 @@ private fun EpisodeView(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() },
     ) {
-        // Horizontal geometry is a fraction of the mockup's 1920 width, so every zoom reflows.
+        // Horizontal geometry is a fraction of the 1920 design width, so every zoom reflows.
         val screenW = maxWidth
         fun fx(px: Int) = screenW * (px / 1920f)
         EpisodesBackdrop(info.backdropUrl ?: info.posterUrl, Modifier.align(Alignment.TopEnd))
@@ -1426,11 +1489,22 @@ private fun EpisodeView(
             }
         }
         Column(Modifier.padding(start = fx(84), top = 104.mpx).width(fx(980))) {
-            Text(
-                series.name,
-                style = stageText(92, 800, (-2.5).mpxSp).copy(lineHeight = 92.mpxSp),
-                color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            // At most 170 high, the room the films' hero gives its title, so two lines shrink rather than
+            // push the episodes down.
+            // The show's title art where it has one, as on the browse hero; the name when it has none or it fails.
+            var logoFailed by remember(info.logoUrl) { mutableStateOf(false) }
+            val logo = info.logoUrl?.takeIf { it.isNotBlank() && !logoFailed }
+            if (logo != null) {
+                tv.own.owntv.ui.stage.StageTitleArt(
+                    url = logo,
+                    contentDescription = series.name,
+                    onFailed = { logoFailed = true },
+                    alignment = Alignment.BottomStart,
+                    modifier = Modifier.fillMaxWidth(0.6f).height(150.mpx),
+                )
+            } else {
+                tv.own.owntv.features.shell.components.VodHeroTitle(series.name, Modifier.heightIn(max = 170.mpx))
+            }
             VodMeta(
                 parts = listOfNotNull(
                     info.year?.toString(),
@@ -1443,7 +1517,7 @@ private fun EpisodeView(
             )
             info.plot?.takeIf { it.isNotBlank() }?.let {
                 Text(
-                    it, style = stageText(19.5f, 400).copy(lineHeight = (19.5f * 1.55f).mpxSp), color = Color(0xFFC9D3CF),
+                    it, style = stageText(19.5f, 400).copy(lineHeight = (19.5f * 1.55f).mpxSp), color = StageColors.Body,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 860.mpx),
                 )
             }
@@ -1467,10 +1541,10 @@ private fun EpisodeView(
                     onClick = { vm.toggleFavorite(series) },
                     icon = OwnTVIcon.FAVORITE, iconFilled = favourite, height = 60.mpx, textSize = 20,
                 )
-                if (visibleEpisodes.isNotEmpty() || seasonEpisodes.isNotEmpty()) {
+                if (downloadsAllowed && (visibleEpisodes.isNotEmpty() || seasonEpisodes.isNotEmpty())) {
                     StageButton(
                         text = stringResource(R.string.content_download_season),
-                        onClick = { vm.downloadSeason(series, activeSeason) },
+                        onClick = { vm.askBulkDownload(series, activeSeason) },
                         icon = OwnTVIcon.DOWNLOADS, height = 60.mpx, textSize = 20,
                     )
                 }
@@ -1565,7 +1639,12 @@ private fun EpisodeView(
         when {
             loading && episodes.isEmpty() -> Box(epArea, contentAlignment = Alignment.Center) { OwnTVSpinner(sizeDp = 48) }
             episodes.isEmpty() -> Box(epArea, contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.content_no_episodes), style = stageText(20, 500), color = StageColors.Muted)
+                val failure = episodesFailure
+                Text(
+                    if (failure != null) stringResource(R.string.content_episodes_load_failed, failure)
+                    else stringResource(R.string.content_no_episodes),
+                    style = stageText(20, 500), color = StageColors.Muted,
+                )
             }
             isEpisodeGrid -> {
                 // 336 × 189 stills 26 apart, 5 across at 1920; a wider screen gains columns.
@@ -1596,7 +1675,7 @@ private fun EpisodeView(
                                 onLongClick = { openMenu(ep) },
                                 width = tileW, height = tileW * (189f / 336f),
                                 modifier = epModifierFor(index, ep),
-                            ) { filter -> EpisodeStill(episodeStillUrl(meta, series, "w780"), filter) }
+                            ) { filter -> EpisodeStill(episodeStillUrl(ep, meta, series, "w780"), filter) }
                         }
                     }
                 }
@@ -1623,12 +1702,12 @@ private fun EpisodeView(
                                 modifier = epModifierFor(index, ep).fillMaxWidth(),
                             ) { focused ->
                                 Box(Modifier.size(224.mpx, 126.mpx).clip(RoundedCornerShape(14.mpx))) {
-                                    EpisodeStill(episodeStillUrl(meta, series, "w300"), null)
+                                    EpisodeStill(episodeStillUrl(ep, meta, series, "w300"), null)
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         stringResource(R.string.content_episode_numbered, localizedInteger(ep.episodeNumber, grouping = false), title),
-                                        style = stageText(24, 700), color = if (focused) Color.White else StageColors.Text,
+                                        style = stageText(24, 700), color = if (focused) StageColors.FxText else StageColors.Text,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
@@ -1672,12 +1751,12 @@ private fun EpisodeView(
         }
     }
 
-    // Load the opened episode's downloaded subtitles so the menu can enable "Delete subtitles" (§11).
+    // Load the opened episode's downloaded subtitles so the menu can enable "Delete subtitles".
     LaunchedEffect(contextEpisode?.id) {
         contextEpisodeSubs = contextEpisode?.let { runCatching { vm.downloadedSubtitles(it) }.getOrDefault(emptyList()) } ?: emptyList()
     }
 
-    // ☰ Episode options (P6-04): WATCH, LIBRARY, DETAILS, in the order of Settings › Long-press menus.
+    // ☰ Episode options: WATCH, LIBRARY, DETAILS, in the order of Settings › Long-press menus.
     contextEpisode?.takeIf { !showEpisodeDeleteSubs }?.let { ep ->
         val cacheForEp = selectedEpisodeMeta?.takeIf { it.episodeId == ep.id }?.cache
         val watched = ep.id in completedIds
@@ -1700,7 +1779,7 @@ private fun EpisodeView(
             add(MenuAction("tmdb_details", stringResource(R.string.content_episode_details), OwnTVIcon.INFO, group = VodGroupDetails) {
                 if (metadataMode.enrich && cacheForEp != null) { contextEpisode = null; detailsEpisode = ep }
             })
-            // Update details (§11.2 U5a) clears this episode's cache AND its show's match, then re-searches.
+            // Update details clears this episode's cache AND its show's match, then re-searches.
             if (metadataMode.enrich) {
                 add(MenuAction("refetch_tmdb", stringResource(R.string.content_refetch_tmdb), OwnTVIcon.REFRESH, group = VodGroupDetails) {
                     contextEpisode = null
@@ -1716,7 +1795,7 @@ private fun EpisodeView(
         VodOptionsMenu(
             title = stringResource(R.string.content_episode_numbered, localizedInteger(ep.episodeNumber, grouping = false), title),
             subtitle = series.name + " · " + if (ep.seasonNumber == 0) stringResource(R.string.content_season_specials) else stringResource(R.string.content_season, ep.seasonNumber),
-            posterUrl = episodeStillUrl(seasonMeta[ep.id], series, "w300"),
+            posterUrl = episodeStillUrl(ep, seasonMeta[ep.id], series, "w300"),
             x = 1290f,
             menu = ContentMenu.EPISODE,
             actions = actions,
@@ -1729,7 +1808,7 @@ private fun EpisodeView(
         )
     }
 
-    // Episode order (P6-03): seasons and episodes each oldest or newest first, remembered for this
+    // Episode order: seasons and episodes each oldest or newest first, remembered for this
     // series, and Hide watched episodes. Applies at once; stays open so all three can be set in one visit.
     if (showSorting) {
         val focus = remember { FocusRequester() }
@@ -1754,7 +1833,7 @@ private fun EpisodeView(
         }
     }
 
-    // ⋯ Series options (P5-12, without ORGANISE: this page has no category to move or hide within).
+    // ⋯ Series options (without ORGANISE: this page has no category to move or hide within).
     if (seriesMenuOpen) {
         val trailerKey = if (metadataMode.enrich) seriesMeta?.trailerKey else null
         val inHistory by androidx.compose.runtime.produceState(false, series.id) { value = vm.isInHistory(series) }
@@ -1768,7 +1847,7 @@ private fun EpisodeView(
                 vm.toggleFavorite(series); close()
             })
             add(MenuAction("download", stringResource(R.string.content_download_all_episodes), OwnTVIcon.DOWNLOADS, group = VodGroupLibrary) {
-                vm.downloadSeries(series); close()
+                vm.askBulkDownload(series, null); close()
             })
             add(MenuAction("remove_history", stringResource(R.string.content_remove_history), OwnTVIcon.HISTORY, group = VodGroupLibrary) {
                 vm.removeFromHistory(series.id); close()
@@ -1830,7 +1909,7 @@ private fun EpisodeView(
     }
     trailerVideoKey?.let { key -> TrailerPlayerScreen(videoKey = key, title = series.name, onExit = { trailerVideoKey = null }) }
 
-    // Per-episode "Delete subtitles" popup (§11) — individual deletion; closes when none remain.
+    // Per-episode "Delete subtitles" popup — individual deletion; closes when none remain.
     if (showEpisodeDeleteSubs) {
         val ep = contextEpisode
         if (ep == null || contextEpisodeSubs.isEmpty()) {
@@ -1850,7 +1929,7 @@ private fun EpisodeView(
         }
     }
 
-    // Fullscreen TMDB details window for the episode (§11.1) — read-only, Back exits.
+    // Fullscreen TMDB details window for the episode — read-only, Back exits.
     detailsEpisode?.let { ep ->
         val cache = selectedEpisodeMeta?.takeIf { it.episodeId == ep.id }?.cache
         tv.own.owntv.features.shell.components.MediaDetailsScreen(
@@ -1887,7 +1966,7 @@ private fun rememberAirDateLabel(
 }
 
 /**
- * What the hero and the details card show for [series], with the §7.1 / §4.1 precedence: provider first,
+ * What the hero and the details card show for [series], with the source mode's precedence: provider first,
  * TMDB filling the gaps — flipped when the source mode is TMDB-only. A show has no runtime of its own.
  */
 internal fun seriesTitleInfo(
@@ -1923,33 +2002,35 @@ internal fun seriesTitleInfo(
  */
 @Composable
 private fun EpisodesBackdrop(url: String?, modifier: Modifier = Modifier) {
-    val wash = Color(5, 8, 10)
-    Box(modifier.fillMaxWidth(1400f / 1920f).aspectRatio(2f).dissolveEdges(left = 0.34f, bottom = 0.38f)) {
+    val wash = StageColors.Wash
+    Box(modifier.fillMaxWidth(1400f / 1920f).aspectRatio(2f).dissolveEdges(start = 0.34f, bottom = 0.38f)) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
                 model = url, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = androidx.compose.ui.BiasAlignment(1f, -0.4f), modifier = Modifier.fillMaxSize(),
             )
         }
-        Box(Modifier.fillMaxSize().gradientWash(false, 0f to wash.copy(alpha = 0.8f), 0.34f to wash.copy(alpha = 0.3f), 0.6f to wash.copy(alpha = 0f), 1f to wash.copy(alpha = 0f)))
+        Box(Modifier.fillMaxSize().backdropLeftWash(0f to 0.8f, 0.34f to 0.3f, 0.6f to 0f, 1f to 0f))
         Box(Modifier.fillMaxSize().gradientWash(true, 0f to wash.copy(alpha = 0f), 0.6f to wash.copy(alpha = 0f), 0.97f to wash.copy(alpha = 0.9f), 1f to wash.copy(alpha = 0.9f)))
     }
 }
 
 /**
- * An episode's picture: TMDB's still, else the show's backdrop (16:9 like the still), else its poster.
- * The provider stores no episode image, so the show's art only stands in for a missing still.
+ * An episode's picture: TMDB's still, else the provider's own picture of the episode, else the show's
+ * backdrop (16:9 like the still), else its poster. The show's art only stands in for a missing still.
  */
 private fun episodeStillUrl(
+    ep: EpisodeEntity,
     meta: tv.own.owntv.core.database.entity.MetadataCacheEntity?,
     series: SeriesEntity,
     size: String,
 ): String? = tv.own.owntv.core.metadata.MetadataImages.backdrop(meta?.backdropPath, size = size)
+    ?: ep.imageUrl?.takeIf { it.isNotBlank() }
     ?: series.backdropUrl?.takeIf { it.isNotBlank() } ?: series.posterUrl?.takeIf { it.isNotBlank() }
 
 @Composable
 private fun EpisodeStill(url: String?, filter: androidx.compose.ui.graphics.ColorFilter?) {
-    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(StageColors.Ink.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
         if (!url.isNullOrBlank()) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, colorFilter = filter, modifier = Modifier.fillMaxSize())
         } else {

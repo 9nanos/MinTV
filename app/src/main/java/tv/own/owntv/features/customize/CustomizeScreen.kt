@@ -2,21 +2,16 @@ package tv.own.owntv.features.customize
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -25,10 +20,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -37,12 +30,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.own.owntv.R
 import tv.own.owntv.ui.theme.mpx
@@ -57,25 +48,15 @@ import tv.own.owntv.features.settings.StageAction
 import tv.own.owntv.features.settings.StageActionColumn
 import tv.own.owntv.features.settings.SpanHelpBlock
 import tv.own.owntv.core.model.MediaType
-import tv.own.owntv.core.util.Pin
 import tv.own.owntv.features.profiles.PinDialog
 import tv.own.owntv.features.settings.PickerDialog
 import tv.own.owntv.features.settings.SettingsViewModel
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.ui.components.chNavPaging
 import tv.own.owntv.ui.components.jumpLazyListTo
-import tv.own.owntv.ui.components.OwnTVButton
 import tv.own.owntv.ui.components.OwnTVIcon
-import tv.own.owntv.ui.components.dialogPanel
-import tv.own.owntv.ui.components.modalScrim
-import tv.own.owntv.ui.components.OwnTVButtonStyle
 import tv.own.owntv.ui.components.TextInputDialog
-import tv.own.owntv.ui.components.roundedPanel
-import tv.own.owntv.ui.components.trapAllFocusExit
 import tv.own.owntv.ui.components.trapVerticalFocusExit
-import tv.own.owntv.core.theme.GlassSurface
-import tv.own.owntv.ui.theme.LocalActionSurface
-import tv.own.owntv.ui.theme.OwnTVTheme
 import tv.own.owntv.core.customize.MoveKind
 import tv.own.owntv.core.customize.SpanSelector
 
@@ -100,12 +81,11 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val rangeSelectedKeys by vm.rangeSelectedKeys.collectAsStateWithLifecycle()
     val pinLock by vm.pinLock.collectAsStateWithLifecycle()
     val selectedCategory by vm.selectedCategory.collectAsStateWithLifecycle()
-    val colors = OwnTVTheme.colors
     var renaming by remember { mutableStateOf<CustomizeCatRow?>(null) }
     var showNewCatPicker by remember { mutableStateOf(false) }
     var showSortPicker by remember { mutableStateOf(false) }
     var showFilterPicker by remember { mutableStateOf(false) }
-    // "…" in the tool row (P10B): New categories and the PIN lock.
+    // "…" in the tool row: New categories and the PIN lock.
     var showMoreMenu by remember { mutableStateOf(false) }
     var restoringDefaults by remember { mutableStateOf(false) }
     val restorePlaylist by vm.restorePlaylistName.collectAsStateWithLifecycle()
@@ -113,31 +93,27 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val actionsFocus = remember { FocusRequester() }
     // The category whose Hide button was clicked to close a range — opens the Show/Hide/Cancel prompt.
     var rangeEnd by remember { mutableStateOf<CustomizeCatRow?>(null) }
-    // ＋ New category (issue #87): name prompt, then the empty combined category appears in the list.
+    // ＋ New category: name prompt, then the empty combined category appears in the list.
     var creatingCategory by remember { mutableStateOf(false) }
-    // Custom category pending deletion — confirmed in a scrim before anything is removed (plan §3.5).
+    // Custom category pending deletion — confirmed in a scrim before anything is removed.
     var deletingCategory by remember { mutableStateOf<CustomizeCatRow?>(null) }
-    // PIN gate: asked on every entry (state is per-composition, so leaving the screen re-locks it).
-    var unlocked by remember { mutableStateOf(false) }
-    var pinError by remember { mutableStateOf(false) }
-    // Set/Change/Remove PIN flow (only reachable once unlocked).
+    // Set/Change/Remove the category lock PIN. Change and Remove first ask for the current one
+    // ([checkingPin]): the screen itself has no lock, and removing the PIN unlocks every category.
     var editingPin by remember { mutableStateOf<PinEdit?>(null) }
+    var checkingPin by remember { mutableStateOf<PinEdit?>(null) }
     var firstPin by remember { mutableStateOf("") }
     var confirmPinStage by remember { mutableStateOf(false) }
     var pinMismatch by remember { mutableStateOf(false) }
     val firstFocus = remember { FocusRequester() }
     val sortFocus = remember { FocusRequester() }
     val filterFocus = remember { FocusRequester() }
-    val newCategoriesFocus = remember { FocusRequester() }
     val newCatPillFocus = remember { FocusRequester() } // "＋ New category" pill — restore target after its name prompt
-    val pinFocus = remember { FocusRequester() }
-    val removePinFocus = remember { FocusRequester() }
     var itemsReturnKey by remember { mutableStateOf<String?>(null) }
     // Opener row for whichever dialog (new-category picker, rename) is open — restored on close so
     // focus doesn't always jump back to the Live TV section chip.
     var dialogReturn by tv.own.owntv.ui.components.rememberDialogFocusRestore(
         anyDialogOpen = showNewCatPicker || showSortPicker || showFilterPicker || showMoreMenu || restoringDefaults || renaming != null || creatingCategory ||
-            deletingCategory != null || rangeEnd != null || editingPin != null,
+            deletingCategory != null || rangeEnd != null || editingPin != null || checkingPin != null,
     )
 
     // CH+- key paging for the category list (same as Live/Movies/Series browse). The modifier consumes
@@ -159,40 +135,6 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     // LazyColumn items before the category rows (hidden-items header + hidden rows + "Categories"
     // header) — the offset that maps a category index to its LazyColumn item index.
     val headerOffset = if (hiddenChannels.isNotEmpty()) hiddenChannels.size + 2 else 0
-
-    // Wait for the stored lock state before showing anything (no unlocked flash).
-    val oldInset = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 6.dp, top = tv.own.owntv.features.shell.components.StageContentTop)
-    if (!pinLock.loaded) {
-        Column(modifier.then(oldInset).fillMaxSize().roundedPanel()) {}
-        return
-    }
-    if (pinLock.pin != null && !unlocked) {
-        Column(
-            modifier = modifier.then(oldInset).fillMaxSize().roundedPanel().padding(horizontal = 40.dp, vertical = 28.dp),
-        ) {
-            Text(stringResource(R.string.settings_customize_title), style = MaterialTheme.typography.headlineLarge, color = colors.onSurface)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.settings_customize_pin_locked),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant,
-            )
-        }
-        PinDialog(
-            title = stringResource(if (pinError) R.string.settings_customize_wrong_pin else R.string.settings_customize_enter_pin),
-            onSubmit = { entered ->
-                if (entered == pinLock.pin || Pin.verify(entered, pinLock.pin)) {
-                    unlocked = true
-                    pinError = false
-                } else {
-                    pinError = true
-                }
-            },
-            onDismiss = onBack,
-            compact = true,
-        )
-        return
-    }
 
     LaunchedEffect(Unit) {
         vm.setVisibilityFilter(CustomizeVisibilityFilter.ALL)
@@ -227,10 +169,7 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (selectedCategory != null) {
         CustomizeItemsScreen(onBack = { vm.closeItems() }, modifier = modifier)
     } else {
-    // Action pills on this panel frost with CARDS (the surface the panel rows use), not the DIALOGS
-    // default. Covers the chip/move/unhide buttons; trailing Popups don't inherit this anyway.
-    CompositionLocalProvider(LocalActionSurface provides GlassSurface.CARDS) {
-    // P10B-02: the band, the tool row above the list (owner), categories as rows and the panel with
+    // The band, the tool row above the list, categories as rows and the panel with
     // the focused category's actions and the span help.
     StageFullPage(
         parents = listOf(stringResource(R.string.settings_group_content_metadata)),
@@ -266,7 +205,7 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 onClick = { dialogReturn = filterFocus; showFilterPicker = true },
                 icon = OwnTVIcon.EYE_OFF, boxed = true, modifier = Modifier.focusRequester(filterFocus),
             )
-            // ＋ New category (issue #87): an empty combined category; items are moved into it from the
+            // ＋ New category: an empty combined category; items are moved into it from the
             // browse context menus or a category's items.
             tv.own.owntv.ui.stage.StageTool(
                 stringResource(R.string.settings_customize_new_category),
@@ -400,6 +339,9 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 }
                             },
                             onOpenItems = { itemsReturnKey = row.key; vm.openItems(row) },
+                            onDelete = if (row.categoryId == null) {
+                                { dialogReturn = rowFocusers[row.key]; deletingCategory = row }
+                            } else null,
                         )
                     }
                 }
@@ -410,27 +352,20 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (showMoreMenu) {
         PickerDialog(
             title = stringResource(R.string.common_nav_more),
-            options = listOfNotNull(
-                "NEW" to stringResource(
-                    R.string.settings_customize_new_categories_button,
-                    stringResource(if (hideNewCategories) R.string.settings_customize_behavior_hide else R.string.settings_customize_behavior_show),
-                ),
-                if (pinLock.pin == null) "PIN_SET" to stringResource(R.string.settings_customize_set_pin)
-                else "PIN_CHANGE" to stringResource(R.string.settings_customize_change_pin),
-                if (pinLock.pin != null) "PIN_REMOVE" to stringResource(R.string.settings_customize_remove_lock) else null,
-                // Undo for hide / rename / move / reorder, for the playlist(s) this screen shows.
-                CustomizeOption.RESTORE.name to stringResource(R.string.settings_customize_restore_defaults),
-            ),
+            options = customizeMoreOptions(hideNewCategories, hasPin = pinLock.pin != null),
             selected = "",
             onSelect = { value ->
                 showMoreMenu = false
                 when (value) {
+                    "BULK" -> { dialogReturn = moreFocus; vm.bulkRenameAll(autocleanup = false) }
+                    "BULK_CLEANUP" -> { dialogReturn = moreFocus; vm.bulkRenameAll(autocleanup = true) }
                     "NEW" -> showNewCatPicker = true
-                    "PIN_SET", "PIN_CHANGE" -> {
+                    "PIN_SET" -> {
                         firstPin = ""; confirmPinStage = false; pinMismatch = false
-                        editingPin = if (value == "PIN_SET") PinEdit.SET else PinEdit.CHANGE
+                        editingPin = PinEdit.SET
                     }
-                    "PIN_REMOVE" -> editingPin = PinEdit.REMOVE
+                    "PIN_CHANGE" -> checkingPin = PinEdit.CHANGE
+                    "PIN_REMOVE" -> checkingPin = PinEdit.REMOVE
                     CustomizeOption.RESTORE.name -> restoringDefaults = true
                 }
             },
@@ -487,8 +422,8 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         )
     }
 
-    // Custom category pending deletion (opened from the rename dialog's Delete) — confirmed first,
-    // plan §3.5: "It must never touch content."
+    // Custom category pending deletion (opened from the rename dialog's Delete) — confirmed first.
+    // It must never touch content.
     if (restoringDefaults) {
         PinConfirmDialog(
             title = stringResource(
@@ -531,13 +466,13 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             hint = stringResource(R.string.settings_customize_rename_hint, row.originalName),
             onConfirm = { vm.renameCategory(row, it.takeIf { t -> t.isNotBlank() }); renaming = null },
             onDismiss = { renaming = null },
-            // Custom combined categories can be deleted from their own rename dialog (plan §3.5);
+            // Custom combined categories can be deleted from their own rename dialog;
             // the confirm scrim above runs before anything is removed.
             onDelete = if (isCustom) { { deletingCategory = row; renaming = null } } else null,
         )
     }
 
-    // ＋ New category (issue #87): name the empty combined category, then it appears in the list.
+    // ＋ New category: name the empty combined category, then it appears in the list.
     if (creatingCategory) {
         TextInputDialog(
             title = stringResource(R.string.settings_customize_new_category_title),
@@ -559,21 +494,39 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         )
     }
 
-    // Bulk rename (issue #86): choice popup, rule builder, review, restore-confirm, refusal.
+    // Bulk rename: choice popup, rule builder, review, restore-confirm, refusal.
     // Its popups restore D-pad focus to the row that opened the flow when the whole flow closes.
     BulkRenameFlow(vm.bulk, returnFocus = dialogReturn)
+
+    checkingPin?.let { next ->
+        val current = pinLock.pin
+        if (current == null) {
+            checkingPin = null
+        } else {
+            tv.own.owntv.features.profiles.PinPrompt(
+                pin = current,
+                door = tv.own.owntv.core.categorylock.PinDoor.CATEGORY,
+                onUnlock = {
+                    checkingPin = null
+                    firstPin = ""; confirmPinStage = false; pinMismatch = false
+                    editingPin = next
+                },
+                onDismiss = { checkingPin = null },
+            )
+        }
+    }
 
     editingPin?.let { mode ->
         when (mode) {
             PinEdit.REMOVE -> PinConfirmDialog(
                 title = stringResource(R.string.settings_customize_remove_pin_title),
-                message = stringResource(R.string.settings_customize_remove_pin_message),
+                message = stringResource(R.string.settings_customize_remove_pin_locks),
                 confirmLabel = stringResource(R.string.settings_customize_remove),
                 onConfirm = { vm.setPin(null); editingPin = null },
                 onDismiss = { editingPin = null },
             )
-            // SET and CHANGE are the same flow (enter a new PIN, then confirm). To reach here with a
-            // PIN already set the user unlocked the screen, so neither verifies the old PIN.
+            // SET and CHANGE are the same flow (enter a new PIN, then confirm); CHANGE has already
+            // checked the current PIN.
             PinEdit.SET, PinEdit.CHANGE -> {
                 if (confirmPinStage) {
                     key("confirm", pinMismatch) {
@@ -607,7 +560,6 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
     }
-    } // CompositionLocalProvider
     } // else (selectedCategory == null)
 }
 
@@ -617,7 +569,6 @@ fun CustomizeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
  */
 @Composable
 private fun RangeHideDialog(count: Int, onHide: () -> Unit, onShow: () -> Unit, onDismiss: () -> Unit) {
-    val colors = OwnTVTheme.colors
     val hideFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { hideFocus.requestFocus() } }
     BackHandler { onDismiss() }
@@ -627,9 +578,9 @@ private fun RangeHideDialog(count: Int, onHide: () -> Unit, onShow: () -> Unit, 
         body = pluralStringResource(R.plurals.settings_customize_selected_categories, count, count),
         width = 864.mpx,
         buttons = {
-            OwnTVButton(stringResource(R.string.common_cancel), onClick = onDismiss, style = OwnTVButtonStyle.SECONDARY)
-            OwnTVButton(stringResource(R.string.settings_customize_show), onClick = onShow, style = OwnTVButtonStyle.SECONDARY)
-            OwnTVButton(stringResource(R.string.settings_customize_hide), onClick = onHide, modifier = Modifier.focusRequester(hideFocus))
+            tv.own.owntv.ui.stage.StagePopupButton(stringResource(R.string.common_cancel), onClick = onDismiss, primary = false)
+            tv.own.owntv.ui.stage.StagePopupButton(stringResource(R.string.settings_customize_show), onClick = onShow, primary = false)
+            tv.own.owntv.ui.stage.StagePopupButton(stringResource(R.string.settings_customize_hide), onClick = onHide, modifier = Modifier.focusRequester(hideFocus))
         },
     )
 }
@@ -657,6 +608,8 @@ private fun CategoryRow(
     onHideLongPress: () -> Unit,
     onPickRangeEnd: () -> Unit,
     onOpenItems: () -> Unit,
+    /** Set only for a custom category: a provider's own category cannot be deleted. */
+    onDelete: (() -> Unit)?,
 ) {
     val meta = listOfNotNull(
         row.hidden.takeIf { it }?.let { stringResource(R.string.settings_customize_hidden) },
@@ -676,6 +629,8 @@ private fun CategoryRow(
             { if (inRangeMode) onPickRangeEnd() else onToggleHidden() },
             onHideLongPress,
         ),
+    ) + listOfNotNull(
+        onDelete?.let { StageAction(OwnTVIcon.TRASH, stringResource(R.string.common_delete), it, danger = true) },
     )
     StageSettingRow(
         icon = OwnTVIcon.FOLDER,
@@ -710,7 +665,7 @@ private fun CategoryRow(
 private enum class PinEdit { SET, CHANGE, REMOVE }
 
 /**
- * Generic Yes/No confirmation scrim used to remove the Customize PIN lock. Mirrors [RangeHideDialog]'s
+ * Generic Yes/No confirmation scrim used to remove the category lock PIN. Mirrors [RangeHideDialog]'s
  * structure so D-pad focus and the back button behave the same way as the other scrim dialogs here.
  */
 @Composable
@@ -721,7 +676,6 @@ private fun PinConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val colors = OwnTVTheme.colors
     val confirmFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { confirmFocus.requestFocus() } }
     BackHandler { onDismiss() }
@@ -731,8 +685,8 @@ private fun PinConfirmDialog(
         body = message,
         width = 522.mpx,
         buttons = {
-            OwnTVButton(stringResource(R.string.common_cancel), onClick = onDismiss, style = OwnTVButtonStyle.SECONDARY)
-            OwnTVButton(confirmLabel, onClick = onConfirm, modifier = Modifier.focusRequester(confirmFocus))
+            tv.own.owntv.ui.stage.StagePopupButton(stringResource(R.string.common_cancel), onClick = onDismiss, primary = false)
+            tv.own.owntv.ui.stage.StagePopupButton(confirmLabel, onClick = onConfirm, modifier = Modifier.focusRequester(confirmFocus))
         },
     )
 }
@@ -746,6 +700,3 @@ internal fun Modifier.upTo(target: FocusRequester): Modifier = onPreviewKeyEvent
     if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) runCatching { target.requestFocus() }
     true
 }
-
-/** Key of the restore entry in the More menu (the others are the screen's existing string keys). */
-private enum class CustomizeOption { RESTORE }

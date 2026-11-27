@@ -21,7 +21,7 @@ OwnTV is a native **Android TV** IPTV player written in Kotlin with Jetpack Comp
 **ExoPlayer (Media3)** for near-instant Live TV.
 
 It is a **player only**. You supply an Xtream login, an M3U playlist (URL or a local file) or a
-Stalker/Ministra portal (Portal URL + MAC, with optional Serial Number, Device ID, Device ID2 and
+Stalker/Ministra portal (Portal URL + MAC, with an optional username and password, and optional Serial Number, Device ID, Device ID2 and
 Signature for stricter portals).
 
 **Key principles**
@@ -60,7 +60,8 @@ Each engine is chosen automatically by content type, with fallback between them.
 - **Track memory** — the audio and subtitle language picked in the player is remembered per
   channel, film and series (per profile), on both engines.
 - **Per-playlist provider quirks** — catch-up time zone, "give up after" time and an HTTP Referer
-  can be set for one playlist without touching the others.
+  can be set for one playlist without touching the others. The catch-up time zone defaults to
+  **Automatic**: the Xtream panel's own zone, read at every sync.
 - **The fallback ladder** — a failing live channel walks up to four rungs, each tried once:
   `ExoPlayer+HLS → ExoPlayer+TS → mpv+HLS → mpv+TS`, or the same list led by mpv. **Give up on a
   channel after** (15/30/60 s or Never, default 30 s) bounds the whole tune; provider-requested
@@ -68,12 +69,14 @@ Each engine is chosen automatically by content type, with fallback between them.
 - **VOD fallback is never remembered** — every film starts on the engine you chose.
 - **Reset saved player choices** forgets every per-item pin in one step.
 - **Protected (DRM) playback** — Widevine and ClearKey over DASH and HLS, read from the playlist's
-  `#KODIPROP` licence properties, for live channels, films and episodes. The device's own CDM does
+  `#KODIPROP` licence properties (a licence server, or ClearKey keys written inline), for live channels, films and episodes. The device's own CDM does
   the work, so there is nothing to configure and no licence to buy; the device's security level
   decides whether HD is served. Such an item is pinned to ExoPlayer, outranks every other preference,
   and never leaves for an external player. It also **cannot be recorded** — the CDM decrypts only
   into a secure decoder for immediate display, so a recording is refused before it starts rather than
-  left as a file that will not play.
+  left as a file that will not play. Apple FairPlay has no Android CDM: such an item shows its own
+  message at once instead of failing like a broken stream, and ClearKey keys filed under a FairPlay
+  label play as ClearKey.
 - **Container is decided from evidence, not from the file extension** — the declared
   `manifest_type`, then what the response actually turns out to be, then what the same provider has
   already been caught serving. This is what lets a DASH channel published at an extensionless address
@@ -120,6 +123,7 @@ Each engine is chosen automatically by content type, with fallback between them.
 | Text (SRT/ASS) | Drawn by the app on the direct render path |
 | Image (PGS/VOBSUB/DVB) | Handed to a second ExoPlayer layer, keeping video on the zero-copy/HDR path |
 | Closed captions (CEA-608/708) | Decoded from the video stream into a selectable track |
+| Local files | One file picked by hand, or **Find in folder**: a folder chosen once, best match first, optional automatic loading of the one exact match |
 
 Independent **font, scale, colour, position and background** across mpv, ExoPlayer and the app-drawn
 overlay; *Default* preserves authored styling. **Preferred audio/subtitle language** (per profile, 50
@@ -133,7 +137,7 @@ External subtitles come from **OpenSubtitles** (own account, remote sign-in by Q
 ### 2.5 Player HUD
 
 Scrubbable seek bar · previous/next through the episode queue · play/pause · audio, subtitle and
-speed pickers · zoom and aspect (Fit · Fill · Stretch · Original · Force 16:9 · Force 4:3) · volume
+speed pickers · zoom and aspect (Fit · Fill · Stretch · Original · Force 16:9 · Force 4:3 · Force 20:9 — a press steps to the next, hold OK for the list) · **Sources** (the same channel in another quality, category or playlist, from core) · volume
 with mute · favourite the current item · **stream info overlay** (codec, resolution, fps, bit depth,
 HDR type, interlacing on mpv, bitrate, decoder, audio, buffer, dropped frames, masked source URL) · a **clock** in every
 mode, becoming *Programme time* + *Current time* during a replay · auto-hiding controls, with **Back**
@@ -144,8 +148,12 @@ hiding them first and then exiting.
 **CH+/CH−** always switch channels for the whole Live TV or catch-up session, including while the
 controls are up or playback is starting, wrapping at both ends. **Up/Down** (controls hidden) and the
 media ⏮/⏭ keys do the same. **Left** opens the channel list for the context the channel was opened
-from; **Left again** opens the category browser without leaving full screen. **Right** shows the last
-30 channels. Typing a **channel number** tunes it directly.
+from; **Left again** opens a two-pane browser without leaving full screen — Live TV's own category
+sheet (Favorites, Recently watched, Catch-up, All channels and every group) beside the chosen
+category's channels. OK on a category changes the right-hand list; Right / Left move between the
+panes; OK on a channel plays it; Back closes both. Browsing never tunes or changes the CH± list —
+only the channel picked arms it from its list. **Right** shows the last 30 channels with when
+each was watched. All three are Stage glass sheets at the screen edge, and CH+/CH− page through them. Typing a **channel number** tunes it directly.
 
 ### 2.7 Resume, auto-play and the mini-player
 
@@ -155,6 +163,8 @@ series jumps to the last-watched episode.
 
 The **mini-player** docks a film, episode or channel to a corner and keeps playing across the whole
 app; selecting another channel updates it in place. Size and position are one popup in Settings.
+With **Picture-in-picture when leaving the app** on (off by default, only on TVs that offer it), Home
+keeps a playing video going in the system's small window; a screen OwnTV opens itself never does.
 
 ### 2.8 Robustness
 
@@ -162,7 +172,9 @@ Memory budget scales to the device · a decode watchdog blocks 4K/8K software-de
 with a clear error · backgrounding releases the stream immediately · every player command runs off
 the UI thread · auto-reconnect with backoff on dropped live streams · corrupted-file recovery
 destroys and recreates the mpv instance so one bad file cannot poison the session · screensaver
-restore brings a paused film back at the exact spot and re-tunes a live channel to the edge.
+restore brings a paused film back at the exact spot and re-tunes a live channel to the edge · the same
+happens when the TV is switched off and on while the box keeps running (its last sound output gone
+for 6 s) · Play after a pause of over a minute on live goes back to the live edge.
 
 ---
 
@@ -177,12 +189,13 @@ default **Full-bleed** layout it is one title over its dissolving backdrop — r
 title, year, genres, runtime or seasons, rating, synopsis, and Play / Trailer / All versions (with a
 count) / details / favourite — with a pager underneath (◀ ▶ change the title; auto-advance pauses while
 the hero has focus). Moving into the rows folds the hero to a single line; ▲ from the first row
-unfolds it. **Posters only** makes the trending titles the first poster row instead.
+unfolds it. **Posters only** makes the trending titles the first poster row instead; held OK or Menu on a poster opens its menu.
 
 **Keep watching** follows: partly-watched films, episodes and recent channels as 16:9 stills (TMDB
 backdrop → provider backdrop → poster → channel logo on a plate) with progress and time left; resting
 on a card for 3 s plays a muted preview inside it. Then **Favourite channels** (cards or an On-now
-mini-guide), continue rows for films and series as posters, and an optional **Recent channels** row.
+mini-guide), **Favourite movies** and **Favourite series** poster rows (OK opens the film or the
+show), continue rows for films and series as posters, and an optional **Recent channels** row.
 Home feeds the system **Watch Next** row on stock Android TV launchers.
 
 ### 3.2 Sections
@@ -190,30 +203,58 @@ Home feeds the system **Watch Next** row on stock Android TV launchers.
 **Live TV** — a header with the category and channel count, a tool row (search, sort, Guide view) and
 84-high channel rows (number, logo plate, name, programme and time left, progress, provider tags,
 catch-up, favourite, playlist mark). Beside them the preview pane plays the channel with a LIVE badge,
-the real quality / fps / sound, the programme with progress and synopsis, and next / later — **▶**
-steps into that schedule, where OK offers Remind me / Record / Watch channel. **◀** brings the
+the real quality / fps / sound, the programme with progress and synopsis, and next / later (for reading). **▶**, the Info key or the channel menu's first item opens **Program
+details**: the channel's day as one-line rows grouped Earlier · On now · Later, the focused one opened
+in place with facts, tags, the whole description and its actions; Yesterday / Today / Tomorrow on top.
+**OK previews first** (one switch for Live TV, off by default; one for the TV Guide, on): with it on,
+focus no longer plays the preview — the first OK does, OK again goes full screen, and the video stays
+on that channel while the info pane follows the highlight. **◀** brings the
 categories in as a glass sheet (**Stage** layout) or keeps them as a column (**Separate**). The
 channel menu is a grouped Stage menu (Watch / Channel / Guide data / Organise), opened by holding OK
 or the Menu key. **Guide view** shows the guide grid inside Live TV, and *Live TV opens in* remembers
-List or Guide.
+List or Guide. The last category of Live TV, Movies, Series and the TV Guide and the last channel are remembered per
+profile and follow a profile switch at once; only a category the user picks is saved. *TV Guide follows
+Live TV* (Browsing & lists, off by default) gives the TV Guide Live TV's remembered category.
 
 **Movies and Series** — Cinematic or Separate panels (3.5), a sort tool, a title menu (Watch /
 Library / Organise / Details). A **series page** carries the backdrop, Resume/Play, Favourite,
-**Download season** and series options, season tabs with counts (Specials last and uncounted),
-Grid | List and an Episode order menu (oldest/newest, hide watched); episode titles are cleaned of
-"Show – S01E03 –" prefixes, with TMDB's title filling a gap. **Trailers** play in an in-app player
+**Download season** (it asks first with the episode count; gone for a profile with downloads off) and series options, season tabs with counts (Specials last and uncounted; an
+unstarted show plays from Season 1 Episode 1 and auto-play reaches the Specials after the finale),
+Grid | List and an Episode order menu (oldest/newest, hide watched); episode pictures are TMDB's still, else the
+provider's own picture of that episode (database v57), else the show's backdrop; episode titles are cleaned of
+"Show – S01E03 –" prefixes, with TMDB's title filling a gap. Page and hero headlines drop a leading
+provider tag such as "|MULTI|"; poster labels keep the provider's spelling. **Trailers** play in an in-app player
 (OK pauses, ◀ ▶ skip 10 s) that tries the next stored trailer when one is blocked, then offers to open
 YouTube.
 
-**Downloads** — Movies / Series / Recordings tabs with counts, the volume's name and free space, and
+**Downloads** — Recordings / Movies / Series tabs (opens on Recordings) with counts, the volume's name and free space, and
 the folder each tab saves to; rows grouped Downloading / On this TV with picture, details, full file
 path and live "64% · 12.4 MB/s · 3 min left"; actions appear on the focused row only. A Recordings card
-shows the next scheduled recording.
+shows the next scheduled recording. A channel's menu also schedules a recording by day, start and end
+(no guide needed) and offers **Stop recording** while that channel records. Downloads add connections
+(up to eight, within the playlist's limit) while each one helps and write the file in order, so a USB
+stick keeps up; a failure states its reason, a missing file says so, and on a one-stream playlist
+playing pauses the download and asks whether to keep watching or keep downloading.
 
-**Search** — tabs All / Live TV / Movies / Series with counts; a channel result shows Live TV's own
+**Search** — filter buttons Live TV / TV Shows / Movies / Series with counts, switched on and off
+with OK (none on = everything); a channel result shows Live TV's own
 preview pane, a film or series its poster panel. It is a show-only page: **OK goes to the item** in
 its own category or page, and Back returns to Search with the query kept. Empty, it offers Jump to,
-recent searches and Continue watching.
+recent searches and Continue watching. A **TV Shows** group lists stored-guide programmes whose title
+matches, on now or in the next 12 hours, and OK goes to the channel.
+
+**Sports** — live scores, today's and tomorrow's matches and match pages from ESPN, for the
+sports and leagues the profile follows (none at first; Settings → App → Sports). A match page has the
+score, venue, timeline, stats, line-ups, table, form and Broadcasts, and **Find channels** ranks the
+channels in the user's own guide that show it (from 30 minutes before kick-off), then the channels
+named after the competition by any of its names, with a filter by language, country, picture and
+playlist and a switch for those usual channels. Matching runs on the device; no playlist data leaves it.
+The page has three tabs sharing one set of sport and league buttons: **Scores** (the above),
+**Calendar** (a month grid of the followed leagues with the chosen day's matches; months saved on the
+device and fetched again per the Calendar refresh setting) and **Leagues** (league cards, then one
+league's table, fixtures and results; Formula 1 drivers, constructors and races; tennis rankings).
+Teams have their own pages: the season's fixtures and results, next match, last five and table place.
+A Home **Sports** row shows followed matches that are live or about to start.
 
 **More** — a glass section list with the profile row: Settings, Favourites, History, Backup &
 Restore, Local sync, Error log and About, each an enterable page beside the list.
@@ -229,19 +270,21 @@ status, expiry, trial and connections in use, and writes nothing.
 
 ### 3.4 Stalker / Ministra portals
 
-A third source type alongside M3U and Xtream: Portal URL + MAC, with optional Serial Number, Device
+A third source type alongside M3U and Xtream: Portal URL + MAC, with an optional login (username +
+password, for portals that ask for one) and optional Serial Number, Device
 ID, Device ID2 and Signature. MAG handshake auth with in-memory tokens and User-Agent presets. Play
 links are minted per play and silently re-resolved on expiry, so long sessions, downloads with range
 resume, and cross-engine fallback all survive token resets. Full feature parity: downloads, external
-player, TMDB, backup, auto refresh and the playlist switcher.
+player, TMDB, backup, auto refresh and the playlist switcher. The catalogue crawl backs off when a
+portal refuses parallel requests and remembers that limit per playlist; a portal with no series
+section gets the series it files among its films.
 
 ### 3.5 Layout
 
-The **Stage** interface (v5.1.0, designed in #227) replaced the old docked sidebar, top bar and card
-screens entirely — there is no "classic" mode. Every screen sits on a full-width Stage page in the
+The **Stage** interface (designed in #227) is the app's one interface. Every screen sits on a full-width Stage page in the
 **Plus Jakarta Sans** font, with one line-icon set, CSS-exact focus glows and a shared Stage popup kit.
 
-- **Navigation rail** — Search, Home, Live TV, TV Guide, Movies, Series, Downloads and More, the
+- **Navigation rail** — Search, Home, Live TV, Sports, TV Guide, Movies, Series, Downloads and More, the
   wordmark at the top and the profile's avatar (or own picture) at the bottom; a **Now playing** item
   appears while something is docked or in Audio mode. Settings → Layout → **Navigation**: **Floating**
   (a capsule over the content that opens on ◀ and hides after 2 / 4 / 8 s) or **Docked** (always
@@ -256,7 +299,9 @@ screens entirely — there is no "classic" mode. Every screen sits on a full-wid
 - **Panel widths** — named by the layout each screen uses: Separate layouts keep three shares
   (the third may be 0%), Live TV Stage sizes list + preview and the categories sheet on its own scale,
   Cinematic sizes the sheet and the details height. The Guide's two columns split independently.
-  Theme is System / Dark / Light.
+  Theme is System / Dark / Light. Light repaints the whole app — pages, glass, focus rings (the accent with a
+  page-coloured gap), the player HUD and its lists — from one dark/light Stage palette; video stays as it is,
+  white TMDB title art is redrawn in dark ink, and a background picture fades towards the paper.
 
 **Live TV layout** is **Stage** (categories as a sheet on ◀) or **Separate** (an always-visible
 column). **Movies & Series layout** is shared by both sections: **Separate panels** — category column,
@@ -270,9 +315,9 @@ session appear at once.
 
 Folder rails with Favorites and History per section; full category names, never abbreviated; a
 category search box. **Customize** (per profile) hides, renames and reorders categories and
-individual items, recovers hidden ones, filters to All/Visible/Hidden, and can be **PIN-locked**.
+individual items, recovers hidden ones, and filters to All/Visible/Hidden; it holds the **category lock PIN**.
 **Bulk rename** applies ordered prefix/suffix rules with automatic cleanup, a review step and a
-restore-original undo. **Custom combined categories** gather items from anywhere. A category can also
+restore-original undo — over a category's items, or over the category names themselves (⋯ menu). **Custom combined categories** gather items from anywhere. A category can also
 be hidden, moved or restored to the playlist's default (hidden items, items moved out and custom
 order are listed and undone together) straight from the browse screen by holding OK; **Restore
 playlist defaults** in Customize's More menu does the same for the playlists shown in a section. All
@@ -281,9 +326,12 @@ hiding a provider category no longer empties custom categories. Custom categorie
 player's channel list and the Multiview picker. A typed category search is kept while a channel plays;
 Back in the list clears it.
 
-Search covers Live, Movies and Series together (3.2). Live TV
-reopens on the category you last used, with focus on the last channel. **App startup** is per
-profile: Home, last channel, Live Favorites, or one chosen channel.
+Search covers Live, Movies and Series together (3.2), with voice search where the device has a speech
+recogniser. Live TV reopens on the category you last used, with focus on the last channel. **App
+startup** is per profile: Home, last channel, the last channel in the TV Guide or Live TV, Live
+Favorites, or one chosen channel. **Auto start** (device-wide, off by default) opens OwnTV when the TV
+boots or wakes from sleep; it needs "Display over other apps", and a profile with a PIN is locked
+again on every wake.
 
 ---
 
@@ -297,16 +345,23 @@ profile: Home, last channel, Live Favorites, or one chosen channel.
 - Two-stage rows: focus selects the row, **OK** or **Right** steps into its programmes, **Back** steps
   out. Cells show recording / reminder / catch-up icons; overlapping programmes are drawn one after
   another; an empty stretch is a focusable "No program at this time" cell that Left/Right cross in
-  30-minute steps. Every programme action (Remind me / Watch from start, Record, Watch channel…) is in
-  the Hold-OK menu.
+  30-minute steps. Every programme action (Program details, Remind me / Watch from start, Record,
+  Watch channel…) is in the Hold-OK menu; the Info key opens Program details directly — the channel's day as a page, opened on that
+  programme.
+- Catch-up rows on screen ask core for their **past days from the provider's archive** (one request at a
+  time, a week back at most), so the guide reaches as far back as the recordings.
 - Order by Provider, A–Z, Catch-up first or Favourites first; the category filter is Live TV's own
-  list; *Show → Channels without guide*.
+  list, and Provider/A–Z follow Live TV's order with moved channels in their place; *Show → Channels without guide* and *Show → Video preview* (off shows the channel's logo
+  instead of playing it; kept in backups).
 - **Programme reminders** — at the chosen lead time (5 min by default) OwnTV asks to switch, over any
   screen including the player, or switches, or only notifies.
 - The grid reloads only once a guide sync finishes, instead of rebuilding every ~25 s during one.
 - **Catch-up TV** — replay programmes that already aired, up to 7 days, seekable. **Live rewind**
-  scrubs the live stream on archive-capable channels. **Go back to…** jumps straight to a time, with
-  an exact day/hour/minute picker clamped to the archive window — and works with **no guide at all**.
+  scrubs the live stream on archive-capable channels. A channel's **Archive** (channel menu, or the
+  player's catch-up button) is its Program details page with a days panel reaching as far back as the
+  archive, each past programme playable from its start. On a channel with **no guide at all** the same
+  entries open **Go back to…**, which jumps straight to a time, with an exact day/hour/minute picker
+  clamped to the archive window.
   A **Catch-up category** in Live TV lists every channel that advertises an archive.
 - **Pause and rewind live TV** (local timeshift, opt-in) — a channel without catch-up is saved on the
   device while it is watched full screen (15–60 min, always ≥ 1 GB free) and played from that copy, so it
@@ -317,7 +372,11 @@ profile: Home, last channel, Live Favorites, or one chosen channel.
 - **Auto-match EPG** links channels to guide data when `tvg-id` is missing or wrong, scanning only the
   playlist(s) the guide is showing (a 400-channel playlist in about 3 s); confident matches
   apply automatically and the rest go to a review list. Matches are per profile and survive re-syncs.
+  Every match (Live TV, the Guide, Auto-match, review) goes through core's `GuideMatches`: it fills from the
+  cached guide and re-syncs only the feeds that list the id when that cannot.
   A **guide time offset** corrects a feed published in another time zone, globally or per channel.
+- **Several XMLTV feeds:** the order in EPG Sources is the guide priority — where two feeds list one
+  channel, the higher one is drawn and a lower one only fills its gaps.
 - **Multiple XMLTV feeds** merge into one guide. Opt-in: importing a playlist does not auto-download
   its guide. Each feed can use its own channel logos and has its own auto-refresh interval.
 - **Performance** — pre-loaded in the background; only your channels' programmes are stored; a
@@ -331,7 +390,8 @@ profile: Home, last channel, Live Favorites, or one chosen channel.
 
 Record from the **Guide** (following the programme's times, with padding), from the **channel list**,
 or from the **player**, on live channels. **Record every showing** sets a standing rule for that
-programme on that channel. A catch-up programme can be saved from the provider's archive. Recordings
+programme on that channel; every rule is listed at the top of **Downloads → Recordings**, where it
+can be stopped. A catch-up programme can be saved from the provider's archive. Recordings
 appear in **Downloads → Recordings** with duration, size and full path. Padding (start early, keep
 going after the end) and keeping one stream free are set in Watching & recording → Recording.
 
@@ -361,7 +421,12 @@ wrong number. **Settings → Playlists → Info** shows it; **Re-test** re-measu
 ## 6. Profiles
 
 Multiple profiles, each with its own favourites, history, resume positions and layout. Optional
-**PIN locks** (salted hash) and a **"Who's watching?"** launch gate. **Kids mode** hides adult
+**PIN locks** (salted hash) and a **"Who's watching?"** launch gate. Three separate locks, each with its
+own PIN and wrong-entry limit — profile, category and a per-profile **Settings lock** (Settings, Backup &
+Restore, Local sync, and optionally long-press changes). A profile with a profile or Settings lock is
+**protected**: a new profile does not inherit its playlists, and another profile backs it up, merges or
+replaces it in a restore, edits or deletes it only after one of its PINs. Local sync is profile-based:
+the profile in use merges with the one in use on the other device. **Kids mode** hides adult
 provider categories and items across every surface — Live, Movies, Series, Home, Search, Guide,
 catch-up, downloads, launcher recommendations and direct playback — and excludes adult TMDB results;
 the Guide itself is hidden. Detection uses multilingual category markers with an *Adult Swim*
@@ -401,12 +466,12 @@ their group.
 | **Appearance** | Theme, Accent color, Focus highlight, Glass & background, Ambient Glow (Dark + Glass off only), Fonts & text size, Popup size, UI zoom, Animations, Date, time & weather — with a live Home preview |
 | **Layout** | Navigation, Live TV layout, Live TV opens in, Movies & Series layout, Panel widths, Guide column widths, Browsing & lists, Home screen, Long-press menus, Remote shortcuts |
 | **Content & metadata** | Customize categories & items, Metadata (TMDB), OpenSubtitles |
-| **Player** | Live TV / Movies & Series player (+ per playlist), saved choices, learned stream fixes, External player · Film buffer, Network timeout, Reconnect attempts |
-| **Picture** | Hardware decoding, HDR (mpv only), Maximum video quality, Tunneled playback, Default zoom, saved zoom · Auto frame rate, Pause during the switch, Match resolution |
+| **Player** | Live TV / Movies & Series player (+ per playlist), saved choices, External player · Film buffer, Network timeout, Reconnect attempts |
+| **Picture** | Hardware decoding, Prefer SDR, Maximum video quality, Tunneled playback, Default zoom, saved zoom · Auto frame rate, Pause during the switch, Match resolution |
 | **Sound & subtitles** | Default volume, Surround, Dolby/DTS passthrough, Night mode, Volume leveling, Audio sync (+ saved) · Preferred audio / subtitle language, Subtitle appearance |
-| **Live TV** | Channel numbers, Live preview, Preview audio, Pause and rewind live TV, Rewind length, Resume a saved channel, Left and right rewind · Live latency, Pre-buffer, Give up after (each + per playlist) |
-| **Watching & recording** | Seek step, Live rewind step, Resume playback, Auto-play next episode · Multiview, Max tiles, Mini-player · Recording: keep one stream free, record what I'm watching, start early, keep going after the end |
-| **App** | Language, App icon, Accent-colored logo, App startup, Check for updates (+ on startup) · Proxy, DNS · Measured stream stats, Detailed playback logging |
+| **Live TV** | Channel numbers, Live preview, Preview audio, OK previews first, Pause and rewind live TV, Rewind length, Resume a saved channel, Left and right rewind · Live latency, Pre-buffer, Give up after (each + per playlist) |
+| **Watching & recording** | Seek step, Live rewind step, Resume playback, Auto-play next episode · Multiview, Max tiles, Mini-player, Picture-in-picture when leaving the app · Recording: keep one stream free, record what I'm watching, start early, keep going after the end |
+| **App** | Language, App icon, Accent-colored logo, App startup, Auto start on boot / on wake-up, Check for updates (+ on startup) · Proxy, DNS · Measured stream stats, Detailed playback logging |
 
 - **Appearance** — any accent colour (presets, hex, a saturation square and hue bar as separate focus
   stops, live re-tint, Cancel restores), a separate **focus highlight**, one font family for the app and
@@ -424,6 +489,9 @@ their group.
   with the explicit Dark theme while Glass is off.
 - **Remote Shortcuts** — short and long presses of spare colour, number, channel and media keys
   mapped to 26 actions. Essential keys stay protected; the shipped CH+/− paging remains the default.
+  **Player buttons** on the same page: what holding or pressing OK opens in the full-screen player,
+  swapped channel up/down, number keys on or off, and what D-pad Up/Down do (change channel, controls and
+  recently watched, or nothing); every default is the player's own behaviour.
 - **Stage defaults** are written once at the first start of v5.1.0 (core `applyStageDefaults`); a
   value the user already stored is kept.
 - **Developer** (dev-tools builds only) lives under More, not Settings.
@@ -466,7 +534,7 @@ downloaded subtitle files. An optional **backup password** encrypts the whole co
 proxy passwords, Stalker identity, TMDB and OpenSubtitles credentials, PIN hashes. Restore accepts
 `.own` and legacy `.json` — from a file on this TV or sent from a phone (**Remote**) — detected by
 content rather than extension, and **merge-restore remaps
-every id** the file carries. Sources are matched on type + URL + username, plus the MAC for Stalker.
+every id** the file carries. Sources are matched on type + URL + username; a Stalker portal on type + URL + MAC.
 
 > Android's automatic backup is deliberately **disabled**: the raw stores hold plaintext credentials,
 > so this screen is the single explicit, encryptable path off the device.
@@ -487,7 +555,7 @@ manual check, and installation on the TV itself.
 | Area | Choice |
 |---|---|
 | Language | Kotlin 2.4.20 (no `kotlin-android` plugin; the Compose compiler plugin pulls the Kotlin Gradle plugin to this version) |
-| Build | AGP 9.4.0 / Gradle 9.7.1, KSP2 2.3.11 |
+| Build | AGP 9.4.0 / Gradle 9.8.2, KSP2 2.3.11, JDK 25 |
 | UI | Jetpack Compose for TV (`androidx.tv:tv-material` 1.1.0), Compose BOM 2026.08.00 |
 | Media | libmpv (FFmpeg) — `tv.own.owntv:libmpv`, OwnTV's own build (newest mpv + FFmpeg 9, monthly) · ExoPlayer/Media3 1.11.1 |
 | Database | Room 2.8.5 + Paging 3.5.1 + FTS4 (WAL) |
@@ -500,6 +568,9 @@ manual check, and installation on the TV itself.
 ---
 
 ## 12. Architecture
+**Re-test** measures for real, and a measured limit outranks the Xtream panel's own number at the next
+sync. **Ignore connection limit** (per playlist) lets Multiview and recordings try more streams than
+the playlist reports; the provider's refusal still stops a stream with its sentence.
 
 ### 12.1 Three repositories
 
@@ -516,7 +587,12 @@ same version.
 
 M3U playlists are line-streamed and Xtream `player_api` JSON is read with `android.util.JsonReader`,
 so a huge provider payload is never fully buffered. Typed M3U import routes `type=` / `tvg-type=`
-entries into Movies and Series. `SyncManager` inserts in chunked transactions with progress and
+entries into Movies and Series; an untagged entry whose link is a single video file (`.mp4`, `.mkv`…)
+goes to Movies, and an entry later re-tagged as a film or series leaves Live TV. A playlist that numbers
+none of its channels is numbered 1, 2, 3… in file order. A per-playlist **Clean channel names** option
+tidies country prefixes and trailing quality tags at sync time, while guide matching keeps using the
+provider's own names. Re-syncs diff by content hash and keep the provider's order without rewriting
+unchanged rows, so an unchanged re-sync writes almost nothing. `SyncManager` inserts in chunked transactions with progress and
 cancellation, with the database write on its own coroutine fed over a rendezvous channel — so
 downloading and parsing overlap with writing the previous batch. A truncated bulk list (HTTP 512)
 falls back to per-category fetching.
@@ -533,7 +609,9 @@ metered at a single choke point so no endpoint can bypass it. Detail cache keys 
 language, so switching language does not wipe the cache.
 
 A personal TMDB key, and OpenSubtitles credentials, can be handed over from another device by QR +
-PIN rather than typed with a remote. The same companion server can receive an uploaded `.m3u` file.
+PIN rather than typed with a remote. The same companion server can receive an uploaded `.m3u` file,
+and can edit one saved playlist from a browser — secrets are never sent to that page, an empty field
+keeps the stored value, and the TV's own Save applies it.
 
 ### 12.4 Storage
 

@@ -21,7 +21,7 @@ import tv.own.owntv.ui.theme.stageText
 
 internal val MinTvNavy = tv.own.owntv.ui.theme.StageSurfaces.Background
 internal val MinTvTeal = tv.own.owntv.ui.theme.StageSurfaces.Cyan
-internal val MinTvMuted = tv.own.owntv.ui.theme.StageColors.Muted
+internal val MinTvMuted = Color(0xFFA6B5CA) // Min TV screens are dark-only; same as the dark Stage palette
 internal val MinTvPanel = tv.own.owntv.ui.theme.StageSurfaces.Panel
 
 @Composable

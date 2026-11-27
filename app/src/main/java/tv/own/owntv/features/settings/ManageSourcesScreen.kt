@@ -27,7 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
@@ -60,12 +60,9 @@ import tv.own.owntv.features.setup.playlistAutoRefreshLabel
 import tv.own.owntv.features.setup.AddSourceChooserScreen
 import tv.own.owntv.features.setup.AddSourceScreen
 import tv.own.owntv.features.setup.RemoteSetupScreen
-import tv.own.owntv.ui.components.OwnTVButton
-import tv.own.owntv.ui.components.OwnTVButtonStyle
 import tv.own.owntv.ui.components.OwnTVSpinner
-import tv.own.owntv.ui.theme.OwnTVTheme
 
-/** Phase 13 — list / add / re-sync / delete the active profile's IPTV sources. */
+/** List / add / re-sync / delete the active profile's IPTV sources. */
 @Composable
 fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val vm: SettingsViewModel = koinViewModel()
@@ -78,7 +75,6 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val sourceTest by vm.sourceTest.collectAsStateWithLifecycle()
     val deletingIds by vm.deletingSourceIds.collectAsStateWithLifecycle()
     val epgSync by vm.epgSync.collectAsStateWithLifecycle()
-    val colors = OwnTVTheme.colors
     val defaultIptvName = stringResource(R.string.setup_default_iptv)
     val defaultPlaylistName = stringResource(R.string.setup_name_default_playlist)
     val defaultPortalName = stringResource(R.string.setup_default_portal)
@@ -87,8 +83,11 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     // Within "Add source": null = the Remote|Manual chooser, else the chosen path.
     var addMode by remember { mutableStateOf<AddMode?>(null) }
     var editingSource by remember { mutableStateOf<SourceEntity?>(null) }
+    // Within "Edit source": the Remote page that edits it from a browser on another device.
+    var editRemote by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<SourceEntity?>(null) }
     var resyncChoice by remember { mutableStateOf<SourceEntity?>(null) }
+    var nameCleanup by remember { mutableStateOf<SourceEntity?>(null) }
     // Set while the "this will stop playback and take a while" confirmation is on screen.
     var confirmRetest by remember { mutableStateOf<SourceEntity?>(null) }
     val addFocus = remember { FocusRequester() }
@@ -149,32 +148,48 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     BackHandler {
         when {
             showAdd -> { showAdd = false; addMode = null; vm.stopRemoteListener(); vm.cancelImport() }
-            editingSource != null -> editingSource = null
+            editingSource != null && editRemote -> { vm.stopRemoteListener(); editRemote = false }
+            editingSource != null -> { editingSource = null; vm.consumeRemotePayload() }
             else -> onBack()
         }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (editingSource != null) {
+        if (editingSource != null && editRemote) {
+            val src = editingSource!!
+            RemoteSetupScreen(
+                state = vm.remoteState.collectAsStateWithLifecycle().value,
+                payloads = vm.remotePayloads,
+                onStartListener = { port -> vm.startRemoteEditListener(port, src) },
+                onStopListener = { vm.stopRemoteListener() },
+                // The submission pre-fills the edit form; Save there applies it.
+                onPayloadReceived = { editRemote = false },
+                onBack = { vm.stopRemoteListener(); editRemote = false },
+                modifier = Modifier,
+                parents = listOf(stringResource(R.string.settings_playlists), stringResource(R.string.setup_edit_source)),
+                note = stringResource(R.string.settings_remote_edit_note),
+            )
+        } else if (editingSource != null) {
             val src = editingSource!!
             AddSourceScreen(
                 initial = src,
                 initialAutoRefresh = playlistAutoRefresh[src.id] ?: PlaylistRefresh.OFF,
                 initialIsDefault = src.id == defaultId,
-                onStartXtream = { n, server, u, p, ua, ref, epg, autoRefresh, live, movies, series, isDefault, preferHls ->
+                onStartXtream = { n, server, u, p, ua, ref, epg, autoRefresh, live, movies, series, isDefault, preferHls, catchupPreferHls ->
                     vm.updateSource(
                         src.id, n, server, u, p, ua, epg, autoRefresh, isDefault, httpReferer = ref,
                         syncLive = live != tv.own.owntv.core.sync.SyncScopeChoice.Off,
                         syncMovies = movies != tv.own.owntv.core.sync.SyncScopeChoice.Off,
                         syncSeries = series != tv.own.owntv.core.sync.SyncScopeChoice.Off,
                         preferHls = preferHls,
+                        catchupPreferHls = catchupPreferHls,
                     )
                     editingSource = null
                 },
-                onStartM3u = { n, url, ua, ref, epg, autoRefresh, isDefault -> vm.updateSource(src.id, n, url, "", "", ua, epg, autoRefresh, isDefault, httpReferer = ref); editingSource = null },
-                onStartStalker = { n, url, mac, serialNumber, deviceId, deviceId2, signature, ua, ref, autoRefresh, isDefault, live, movies, series ->
+                onStartM3u = { n, url, ua, ref, epg, autoRefresh, isDefault, catchupPreferHls -> vm.updateSource(src.id, n, url, "", "", ua, epg, autoRefresh, isDefault, catchupPreferHls = catchupPreferHls, httpReferer = ref); editingSource = null },
+                onStartStalker = { n, url, mac, serialNumber, deviceId, deviceId2, signature, ua, ref, autoRefresh, isDefault, live, movies, series, login, password ->
                     vm.updateSource(
-                        src.id, n, url, "", "", ua, "", autoRefresh, isDefault, mac = mac, httpReferer = ref,
+                        src.id, n, url, login, password, ua, "", autoRefresh, isDefault, mac = mac, httpReferer = ref,
                         stalkerSerialNumber = serialNumber, stalkerDeviceId = deviceId,
                         stalkerDeviceId2 = deviceId2, stalkerSignature = signature,
                         syncLive = live != tv.own.owntv.core.sync.SyncScopeChoice.Off,
@@ -183,7 +198,10 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     )
                     editingSource = null
                 },
-                onBack = { editingSource = null },
+                remotePayload = vm.remotePayload,
+                onRemotePayloadConsumed = { vm.consumeRemotePayload() },
+                onEditFromPhone = { editRemote = true },
+                onBack = { editingSource = null; vm.consumeRemotePayload() },
                 modifier = Modifier,
             )
         } else if (showAdd) {
@@ -206,14 +224,15 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         modifier = Modifier,
                     )
                     AddMode.MANUAL -> AddSourceScreen(
-                        onStartXtream = { n, server, u, p, ua, ref, epg, autoRefresh, live, movies, series, isDefault, preferHls ->
-                            vm.addXtream(n.ifBlank { defaultIptvName }, server, u, p, ua, epg, autoRefresh, live, movies, series, isDefault, preferHls, httpReferer = ref)
+                        onStartXtream = { n, server, u, p, ua, ref, epg, autoRefresh, live, movies, series, isDefault, preferHls, catchupPreferHls ->
+                            vm.addXtream(n.ifBlank { defaultIptvName }, server, u, p, ua, epg, autoRefresh, live, movies, series, isDefault, preferHls, catchupPreferHls, httpReferer = ref)
                         },
-                        onStartM3u = { n, url, ua, ref, epg, autoRefresh, isDefault -> vm.addM3u(n.ifBlank { defaultPlaylistName }, url, ua, epg, autoRefresh, isDefault, httpReferer = ref) },
-                        onStartStalker = { n, url, mac, serialNumber, deviceId, deviceId2, signature, ua, ref, autoRefresh, isDefault, live, movies, series ->
+                        onStartM3u = { n, url, ua, ref, epg, autoRefresh, isDefault, catchupPreferHls -> vm.addM3u(n.ifBlank { defaultPlaylistName }, url, ua, epg, autoRefresh, isDefault, httpReferer = ref, catchupPreferHls = catchupPreferHls) },
+                        onStartStalker = { n, url, mac, serialNumber, deviceId, deviceId2, signature, ua, ref, autoRefresh, isDefault, live, movies, series, login, password ->
                             vm.addStalker(
                                 n.ifBlank { defaultPortalName }, url, mac, serialNumber, deviceId,
                                 deviceId2, signature, ua, autoRefresh, isDefault, live, movies, series, httpReferer = ref,
+                                login = login, password = password,
                             )
                         },
                         // Submissions from the Remote screen land here pre-filled (type + fields).
@@ -240,7 +259,7 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(6.mpx))
                     Text(display?.detailText() ?: stringResource(R.string.settings_sources_preparing), style = stageText(18, 400), color = StageColors.Muted)
                     Spacer(Modifier.height(30.mpx))
-                    OwnTVButton(stringResource(R.string.common_cancel), onClick = { showAdd = false; vm.cancelImport() }, style = OwnTVButtonStyle.SECONDARY)
+                    tv.own.owntv.ui.stage.StageButton(stringResource(R.string.common_cancel), onClick = { showAdd = false; vm.cancelImport() })
                 }
                 is SettingsViewModel.ImportState.Success -> {
                     // Semi-auto EPG: ask → sync (with a live count, like the import) → done, before returning.
@@ -260,7 +279,7 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 Text(remainder, style = stageText(18, 400), color = StageColors.Muted)
                             }
                             Spacer(Modifier.height(30.mpx))
-                            OwnTVButton(stringResource(R.string.common_done), onClick = { showAdd = false; vm.resetImport() })
+                            tv.own.owntv.ui.stage.StageButton(stringResource(R.string.common_done), onClick = { showAdd = false; vm.resetImport() }, tinted = true)
                         }
                     } else {
                         LaunchedEffect(Unit) { showAdd = false; vm.resetImport() }
@@ -272,13 +291,13 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     Text(s.failure.displayText(), style = stageText(18, 400), color = StageColors.Muted)
                     Spacer(Modifier.height(30.mpx))
                     Row(horizontalArrangement = Arrangement.spacedBy(14.mpx)) {
-                        OwnTVButton(stringResource(R.string.common_back), onClick = { showAdd = false; vm.resetImport() }, style = OwnTVButtonStyle.SECONDARY)
-                        OwnTVButton(stringResource(R.string.settings_sources_try_again), onClick = { vm.resetImport() }, modifier = Modifier.focusRequester(errorFocus))
+                        tv.own.owntv.ui.stage.StageButton(stringResource(R.string.common_back), onClick = { showAdd = false; vm.resetImport() })
+                        tv.own.owntv.ui.stage.StageButton(stringResource(R.string.settings_sources_try_again), onClick = { vm.resetImport() }, modifier = Modifier.focusRequester(errorFocus), tinted = true)
                     }
                 }
             }
         } else {
-            // P10B-07: the playlists as rows; the focused one's Edit / Info / Re-sync / Delete in the panel.
+            // The playlists as rows; the focused one's Edit / Info / Re-sync / Delete in the panel.
             val actionsFocus = remember { FocusRequester() }
             StageFullPage(
                 parents = listOf(stringResource(R.string.settings_group_sources)),
@@ -319,12 +338,15 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         onEdit = { contextId = source.id; contextIndex = index; editingSource = source },
                         onTest = { contextId = source.id; contextIndex = index; vm.testSource(source) },
                         onResync = { contextId = source.id; contextIndex = index; resyncChoice = source },
+                        onCleanNames = { contextId = source.id; contextIndex = index; nameCleanup = source },
                         onCancelSync = { contextId = source.id; contextIndex = index; vm.cancelResync(source) },
                         onDelete = { contextId = source.id; contextIndex = index; confirmDelete = source },
                     )
                 }
             }
         }
+
+        nameCleanup?.let { src -> ChannelNameCleanupHost(src, onNeedsResync = { vm.resync(it) }, onDismiss = { nameCleanup = null }) }
 
         resyncChoice?.let { src ->
             ResyncChoiceDialog(
@@ -336,14 +358,15 @@ fun ManageSourcesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         }
 
         sourceTest?.let { state ->
+            // Only for a playlist that exists; the measurement and the switch are stored against its row.
+            val src = sources.firstOrNull { it.name == state.sourceName }
             SourceTestDialog(
                 state = state,
                 onDismiss = { vm.dismissSourceTest() },
-                // Only for a playlist that exists; the measurement is stored against its row.
-                onRetest = sources.firstOrNull { it.name == state.sourceName }?.let { src ->
-                    { confirmRetest = src }
-                },
+                onRetest = src?.let { { confirmRetest = it } },
                 onSkip = { vm.skipConnectionMeasurement() },
+                ignoreLimit = src?.ignoreConnectionLimit,
+                onToggleIgnoreLimit = { src?.let { vm.setIgnoreConnectionLimit(it, !it.ignoreConnectionLimit) } },
             )
         }
 
@@ -386,6 +409,7 @@ private fun SourceRow(
     onEdit: () -> Unit,
     onTest: () -> Unit,
     onResync: () -> Unit,
+    onCleanNames: () -> Unit,
     onCancelSync: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -418,14 +442,16 @@ private fun SourceRow(
     }
     val back = rowFocus ?: remember { FocusRequester() }
     val actions = if (isDeleting) emptyList() else listOf(
-        StageAction(OwnTVIcon.PENCIL, stringResource(R.string.settings_sources_edit), onEdit),
-        // "Info", not "Test": the expensive measurement lives behind Re-test inside the popup.
-        StageAction(OwnTVIcon.INFO, stringResource(R.string.settings_sources_info), onTest),
+        // Re-sync first, the action used most, as on the phone. A stray press only opens its choice dialog.
         StageAction(
             OwnTVIcon.REFRESH,
             stringResource(if (syncState.isActive) R.string.settings_sources_cancel else R.string.settings_sources_resync),
             if (syncState.isActive) onCancelSync else onResync,
         ),
+        StageAction(OwnTVIcon.PENCIL, stringResource(R.string.settings_sources_edit), onEdit),
+        // "Info", not "Test": the expensive measurement lives behind Re-test inside the popup.
+        StageAction(OwnTVIcon.INFO, stringResource(R.string.settings_sources_info), onTest),
+        StageAction(OwnTVIcon.SPARKLE, stringResource(R.string.settings_sources_clean_names), onCleanNames),
         StageAction(OwnTVIcon.TRASH, stringResource(R.string.settings_sources_delete), onDelete, danger = true),
     )
     StageSettingRow(
@@ -437,7 +463,7 @@ private fun SourceRow(
         keepPanel = keepPanel,
         help = SettingHelp(
             title = source.name,
-            // The address on one line, the counts on the next (owner).
+            // The address on one line, the counts on the next.
             text = listOfNotNull(typeName, visibleCounts).joinToString("\n"),
             hints = listOf(
                 "▶" to stringResource(R.string.settings_key_actions),
@@ -494,7 +520,7 @@ private fun CatalogSyncState.Syncing.countsLabel(sourceType: SourceType, stored:
             moviesActive = false,
             seriesActive = false,
         )
-        // Stalker: LIVE (Phase C-1) + VOD/series (Phase D-1) all populate.
+        // Stalker: LIVE + VOD/series all populate.
         SourceType.STALKER -> SyncProgressCounts(
             live = live,
             movies = movies,
@@ -524,6 +550,7 @@ internal fun ConfirmDialog(
     message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
     /**
      * What the confirming button says. Defaults to Delete because every caller was a deletion when
      * this was written — which is exactly how the connection-measurement confirmation ended up
@@ -534,46 +561,8 @@ internal fun ConfirmDialog(
     // Focus starts on Cancel: a mis-press must not delete anything.
     tv.own.owntv.ui.stage.StageConfirm(
         title = title, body = message, confirm = stringResource(confirmLabel),
-        onConfirm = onConfirm, onCancel = onDismiss, focusCancel = true,
+        onConfirm = onConfirm, onCancel = onDismiss, focusCancel = true, modifier = modifier,
     )
-}
-
-/**
- * Resync picker: an ordinary refresh, or one that is also allowed to drop titles the provider has
- * stopped listing.
- *
- * A normal resync will not remove more than half a source's rows, because a truncated provider
- * response is indistinguishable from a genuinely shrunken catalog and guessing wrong wipes a working
- * playlist. The consequence is that a provider that really did drop a lot of titles leaves them
- * behind with no way out — this dialog is that way out, kept behind a deliberate choice.
- *
- * Focus starts on the ordinary refresh, so the common case is still Select-then-Select and a
- * mis-press can't trigger removals. Back cancels.
- */
-@Composable
-private fun ResyncChoiceDialog(
-    sourceName: String,
-    onNormal: () -> Unit,
-    onClean: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } }
-    tv.own.owntv.ui.stage.StagePopup(
-        onDismiss = onDismiss,
-        title = stringResource(R.string.settings_sources_resync_title_full, sourceName),
-        body = stringResource(R.string.settings_sources_resync_description),
-        buttons = { tv.own.owntv.ui.stage.StageButton(stringResource(R.string.common_cancel), onClick = onDismiss, height = 56.mpx, textSize = 19) },
-    ) {
-        tv.own.owntv.ui.stage.StagePopupOption(
-            title = stringResource(R.string.settings_sources_resync_now_full), onClick = onNormal, modifier = Modifier.focusRequester(focus),
-            leading = { tv.own.owntv.ui.stage.StagePopupIcon(OwnTVIcon.REFRESH) },
-        )
-        tv.own.owntv.ui.stage.StagePopupOption(
-            title = stringResource(R.string.settings_sources_resync_remove_full), onClick = onClean, danger = true,
-            leading = { tv.own.owntv.ui.stage.StagePopupIcon(OwnTVIcon.TRASH, tv.own.owntv.ui.theme.StageColors.Danger) },
-        )
-    }
 }
 
 /** How the user chose to add a source: fill it from another device (Remote) or type it here (Manual). */
@@ -594,6 +583,9 @@ internal fun SourceTestDialog(
     onRetest: (() -> Unit)? = null,
     /** Abandon a measurement in progress. Falls back to simply closing when not supplied. */
     onSkip: (() -> Unit)? = null,
+    /** The playlist's "Ignore connection limit"; null hides the button (no saved playlist). */
+    ignoreLimit: Boolean? = null,
+    onToggleIgnoreLimit: () -> Unit = {},
 ) {
     val focus = remember { FocusRequester() }
     // Keyed on *which* button carries the requester, not on first composition: while measuring it is
@@ -614,6 +606,15 @@ internal fun SourceTestDialog(
             // race it for the same connection.
             if (onRetest != null && state is SourceTestUi.Done) {
                 tv.own.owntv.ui.stage.StageButton(stringResource(R.string.settings_sources_retest), onClick = onRetest, height = 56.mpx, textSize = 19)
+            }
+            // Beside Re-test: for a provider that allows more than it says, when measuring cannot show it.
+            if (ignoreLimit != null && state is SourceTestUi.Done) {
+                tv.own.owntv.ui.stage.StageButton(
+                    stringResource(R.string.settings_sources_ignore_limit),
+                    onClick = onToggleIgnoreLimit,
+                    trailing = stringResource(if (ignoreLimit) R.string.common_on else R.string.common_off),
+                    height = 56.mpx, textSize = 19,
+                )
             }
             // While measuring, the only honest button abandons it: OK would suggest the answer is in.
             if (state is SourceTestUi.Measuring) {
@@ -636,14 +637,19 @@ internal fun SourceTestDialog(
                 Spacer(Modifier.width(16.mpx))
                 Text(stringResource(R.string.settings_sources_probe_running, state.progress.stream, state.progress.maxStreams), style = line, color = tv.own.owntv.ui.theme.StageColors.Muted)
             }
-            is SourceTestUi.Done -> SourceTestReport(state.result, state.limit)
+            is SourceTestUi.Done -> Column(verticalArrangement = Arrangement.spacedBy(8.mpx)) {
+                SourceTestReport(state.result, state.limit)
+                if (ignoreLimit == true) {
+                    Text(stringResource(R.string.settings_sources_ignore_limit_on), style = tv.own.owntv.ui.theme.stageText(17, 500), color = tv.own.owntv.ui.theme.StageColors.Muted)
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun SourceTestReport(result: SourceTestResult, limit: tv.own.owntv.core.live.ConnectionLimit?) {
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     Column(verticalArrangement = Arrangement.spacedBy(8.mpx)) {
         Text(
             result.headline(res), style = tv.own.owntv.ui.theme.stageText(20, 700),

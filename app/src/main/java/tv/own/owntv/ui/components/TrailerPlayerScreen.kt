@@ -2,7 +2,6 @@ package tv.own.owntv.ui.components
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -24,6 +23,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.net.toUri
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -68,7 +68,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /**
- * In-app YouTube trailer player (plan §7.3 / U4) in the Stage design: a fullscreen WebView-backed IFrame
+ * In-app YouTube trailer player in the Stage design: a fullscreen WebView-backed IFrame
  * player (`android-youtube-player`) in its own window over everything (rail and clock included), with a
  * HUD in the Stage look — the eyebrow "TRAILER" and the [title] at the top, a play / pause button, the
  * progress track, the time and the key hints at the bottom, each over a dark wash. The HUD fades after
@@ -80,7 +80,14 @@ import androidx.compose.runtime.setValue
  * we hand off to an external "Open in YouTube" intent and exit — the button always does *something*.
  */
 @Composable
-fun TrailerPlayerScreen(videoKey: String, title: String? = null, onExit: () -> Unit) {
+fun TrailerPlayerScreen(videoKey: String, title: String? = null, onExit: () -> Unit) =
+    // Video keeps its dark chrome in every theme.
+    androidx.compose.runtime.CompositionLocalProvider(tv.own.owntv.ui.theme.LocalStagePalette provides tv.own.owntv.ui.theme.StagePalette.Dark) {
+        TrailerPlayerContent(videoKey, title, onExit)
+    }
+
+@Composable
+private fun TrailerPlayerContent(videoKey: String, title: String?, onExit: () -> Unit) {
     val context = LocalContext.current
     // The stored value may hold several keys, best first (core TrailerKeys): a blocked one moves on to the next.
     val keys = remember(videoKey) { tv.own.owntv.core.metadata.TrailerKeys.split(videoKey).ifEmpty { listOf(videoKey) } }
@@ -339,8 +346,8 @@ private fun TrailerBlockedDialog(onOpen: () -> Unit, onCancel: () -> Unit) {
 
 /** External fallback: YouTube app if installed, else any browser. Never throws. */
 private fun openInYouTube(context: Context, videoKey: String) {
-    val app = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoKey"))
-    val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoKey"))
+    val app = Intent(Intent.ACTION_VIEW, "vnd.youtube:$videoKey".toUri())
+    val web = Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=$videoKey".toUri())
     runCatching { context.startActivity(app) }
         .recoverCatching { context.startActivity(web) }
 }

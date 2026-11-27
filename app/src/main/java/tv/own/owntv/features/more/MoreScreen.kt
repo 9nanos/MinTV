@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,10 +52,13 @@ import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.BuildConfig
 import tv.own.owntv.R
+import tv.own.owntv.features.profiles.PinPrompt
 import tv.own.owntv.features.settings.BackupScreen
 import tv.own.owntv.features.settings.DeveloperScreen
 import tv.own.owntv.features.settings.LocalSyncScreen
 import tv.own.owntv.features.settings.SettingsViewModel
+import tv.own.owntv.features.settings.lock.SettingsPinViewModel
+import tv.own.owntv.core.settings.guardsPage
 import tv.own.owntv.features.shell.components.RailAvatar
 import tv.own.owntv.player.PlaybackErrorLog
 import tv.own.owntv.ui.components.OwnTVIcon
@@ -70,11 +74,14 @@ import tv.own.owntv.ui.theme.stageText
 /** The sheet's items, top to bottom. [DEVELOPER] exists only in local builds (BuildConfig.DEV_TOOLS). */
 private enum class MoreItem { SETTINGS, FAVORITES, HISTORY, BACKUP, LOCAL_SYNC, ERROR_LOG, ABOUT, DEVELOPER }
 
+/** The pages that ask for the Settings PIN when it is on. */
+private val PIN_PAGES = setOf(MoreItem.BACKUP, MoreItem.LOCAL_SYNC, MoreItem.DEVELOPER)
+
 /**
- * More (Stage P8-01 … P8-08): the glass section sheet, topped by the profile, and one page on the right
+ * More: the glass section sheet, topped by the profile, and one page on the right
  * for the item chosen with OK. Two layers, never three: ▲ ▼ move focus, OK selects the item (focus stays), ▶ enters the page, Back returns to
  * the sheet, Back again leaves More. Nothing opens full screen any more — Settings is the one door out,
- * through its group cards (until P10 redraws Settings itself).
+ * through its group cards.
  */
 @Composable
 fun MoreScreen(
@@ -92,29 +99,45 @@ fun MoreScreen(
     onPlayEpisode: (seriesId: Long, episodeId: Long, positionMs: Long) -> Unit,
     onOpenSeries: (Long) -> Unit,
     onChildFocused: () -> Unit,
+    modifier: Modifier = Modifier,
     onEntryHook: (((() -> Boolean)?) -> Unit)? = null,
     /** Back from Settings: land on the Settings page's first card instead of the rail. */
     restoreFocus: Boolean = false,
     onRestored: () -> Unit = {},
-    modifier: Modifier = Modifier,
     vm: MoreCountsViewModel = koinViewModel(),
     settingsVm: SettingsViewModel = koinViewModel(),
+    pinVm: SettingsPinViewModel = koinViewModel(),
 ) {
-    var selected by rememberSaveable(nativeLibrary) { mutableStateOf(if (nativeLibrary) MoreItem.FAVORITES else MoreItem.SETTINGS) }
+    // Backup & Restore, Local sync and Developer can restore or copy settings, so the Settings PIN
+    // guards them too; one unlock holds until More is left.
+    val pinLock by pinVm.lock.collectAsStateWithLifecycle()
+    var pinPagesUnlocked by remember(pinLock.profileId) { mutableStateOf(false) }
+    var askPinFor by remember { mutableStateOf<MoreItem?>(null) }
+    val pinShut: (MoreItem) -> Boolean = { it in PIN_PAGES && pinLock.guardsPage(pinPagesUnlocked) }
+    // Min TV's native library opens on Favorites (its Settings live under Profil).
+    val start = if (nativeLibrary) MoreItem.FAVORITES else MoreItem.SETTINGS
+    var chosen by rememberSaveable(nativeLibrary) { mutableStateOf(start) }
+    // A guarded page left chosen on an earlier visit stays shut until the PIN is entered again.
+    val selected by rememberUpdatedState(if (pinShut(chosen)) start else chosen)
     val itemFocus = remember { MoreItem.entries.associateWith { FocusRequester() } }
     // What OK / ▶ focuses on the page: a fixed target, or the page's own choice (its first row).
     val pageTarget = remember { FocusRequester() }
     var pageEntry by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var pageFocused by remember { mutableStateOf(false) }
-    val enterPage: () -> Boolean = { pageEntry?.invoke() ?: runCatching { pageTarget.requestFocus() }.isSuccess }
+    val enterPage: () -> Boolean = { pageEntry?.invoke() ?: runCatching { pageTarget.requestFocus() }.getOrDefault(false) }
     val backToSheet: () -> Unit = { runCatching { itemFocus.getValue(selected).requestFocus() } }
     // Like the rail: ▲ ▼ move focus, OK selects the item (its page shows, focus stays on the item),
-    // ▶ goes into the page that is shown (owner).
-    val choose: (MoreItem) -> Unit = { item -> if (item != selected) { selected = item; pageEntry = null } }
+    // ▶ goes into the page that is shown.
+    val choose: (MoreItem) -> Unit = { item ->
+        when {
+            !pinShut(item) -> if (item != selected) { chosen = item; pageEntry = null }
+            pinLock.loaded -> askPinFor = item
+        }
+    }
 
     // The rail's ▶ lands on the item the sheet was last on.
     DisposableEffect(onEntryHook) {
-        onEntryHook?.invoke { runCatching { itemFocus.getValue(selected).requestFocus() }.isSuccess }
+        onEntryHook?.invoke { runCatching { itemFocus.getValue(selected).requestFocus() }.getOrDefault(false) }
         onDispose { onEntryHook?.invoke(null) }
     }
     LaunchedEffect(restoreFocus) {
@@ -138,7 +161,7 @@ fun MoreScreen(
     val logCount by produceState(0, logVersion) { value = withContext(Dispatchers.IO) { PlaybackErrorLog.read(context).size } }
 
     Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() }) {
-        // --- The sheet (`.gsheet`, 440 wide at 24 / 24 / 24): the full height (owner tried level with the page, kept this).
+        // --- The sheet (`.gsheet`, 440 wide at 24 / 24 / 24): the full height.
         Column(
             Modifier
                 .padding(start = 24.mpx, top = 24.mpx, bottom = 24.mpx)
@@ -219,6 +242,16 @@ fun MoreScreen(
                 MoreItem.DEVELOPER -> Box(Modifier.focusRequester(pageTarget).focusGroup()) { DeveloperScreen(onBack = backToSheet) }
             }
         }
+    }
+    val pinItem = askPinFor
+    val pin = pinLock.pin
+    if (pinItem != null && pin != null) {
+        PinPrompt(
+            pin = pin,
+            door = tv.own.owntv.core.categorylock.PinDoor.SETTINGS,
+            onUnlock = { pinPagesUnlocked = true; askPinFor = null; chosen = pinItem; pageEntry = null },
+            onDismiss = { askPinFor = null },
+        )
     }
 }
 
