@@ -146,6 +146,33 @@ class NativeSportHubTest {
             compose.onNodeWithTag("hub-fixture-0").assertIsFocused()
         }
     }
+    /** v0.20: a background channel reload (guide refresh) never blanks the live row under the remote. */
+    @Test fun liveSportRowKeepsFocusWhileChannelsReload() {
+        val at=Instant.parse("2026-11-09T12:00:00Z")
+        val channels=(1..4).map { tv.own.owntv.core.database.entity.ChannelEntity(id=500L+it,sourceId=101,name="TV4 Sport Live $it HD",
+            streamUrl="https://example.invalid/synthetic/$it") }
+        var reloading by mutableStateOf(false)
+        compose.setContent {
+            MaterialTheme {
+                val first=remember { FocusRequester() }
+                NativeSportDashboard(NativeSportSnapshot(1,at.toEpochMilli(),SportPreferences(),null,emptyList(),emptyList(),
+                    if (reloading) emptyList() else channels,channelsLoading=reloading),
+                    NativeSportActions({}, {}, {}, {}, {}),first,{entry=it},{})
+                LaunchedEffect(Unit) { repeat(2) { withFrameNanos { } };entry?.invoke() }
+            }
+        }
+        compose.onNodeWithTag("sport-live-501").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag("sport-live-502").assertIsFocused()
+        compose.runOnIdle { reloading=true }
+        compose.waitForIdle()
+        compose.onNodeWithTag("sport-live-502").assertIsFocused()
+        compose.runOnIdle { reloading=false }
+        compose.waitForIdle()
+        compose.onNodeWithTag("sport-live-502").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
+    }
     @Test fun mainSportShowsFollowedPublicLeagueAndRevocationRemovesOnlyItsMatches() {
         run {
             val at=Instant.parse("2026-11-09T12:00:00Z")

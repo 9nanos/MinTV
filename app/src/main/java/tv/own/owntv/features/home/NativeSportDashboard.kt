@@ -7,6 +7,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -75,7 +78,11 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
     val today = groups.today
     val upcoming = groups.upcoming
     // Sport is for watching first: real local sports channels lead, independent of any match data.
-    val live = data.channels.takeIf { !data.channelsLoading }.orEmpty()
+    // A background channel reload (guide refresh, source sync) must not blank the row the remote is
+    // on: keep the last loaded list until the reload finishes, so focus never falls off a removed card.
+    val loadedLive = remember(data.profile) { mutableStateOf<List<ChannelEntity>>(emptyList()) }
+    LaunchedEffect(data.profile, data.channels, data.channelsLoading) { if (!data.channelsLoading) loadedLive.value = data.channels }
+    val live = if (data.channelsLoading) loadedLive.value else data.channels
     val rows = buildList {
         if (live.isNotEmpty()) add(NativeRow("sport-live", live.map { "sport-live-${it.id}" } + "sport-live-all"))
         add(NativeRow("sport-hero", (if (personalHero) listOf("sport-hero-action") + if (publicHero != null) listOf("sport-hero-teams") else emptyList()

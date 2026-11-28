@@ -195,6 +195,7 @@ jobs:
               ('tv.own.owntv.home.NativeSportHubTest', 'profileSwitchAndEmptyArrivalNeverRecallAnotherProfilesFocus'),
               ('tv.own.owntv.home.NativeSportHubTest', 'mainSportShowsFollowedPublicLeagueAndRevocationRemovesOnlyItsMatches'),
               ('tv.own.owntv.home.NativeSportHubTest', 'publicOnlyProfileUsesContextualHeroAndCold720EntryRemainsLocal'),
+              ('tv.own.owntv.home.NativeSportHubTest', 'liveSportRowKeepsFocusWhileChannelsReload'),
               ('tv.own.owntv.home.HockeyLocalStorageTest', 'boundedAliasQueriesFindOnlyExactAuthorizedLinearChannels'),
               ('tv.own.owntv.home.HockeyLocalStorageTest', 'lookaheadFindsStoredFixtureBeyond128RowsAndInvalidatesChangedGuide'),
               ('tv.own.owntv.home.NativeV011PresentationTest', 'automaticBroadcastCardPlaysOnlyUniqueSourceAt1080'),

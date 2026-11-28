@@ -83,6 +83,14 @@ consent. Next step: bring SHL/HA into the upstream engine so the hub can be reti
 - Next: once the upstream pages are checked on device with SHL followed, retire the hub's own SHL
   pages so Sport has a single engine.
 
+## Fix — Sport rows lost remote focus after a guide refresh
+
+The synthetic performance journey failed intermittently on this branch before M2 too (2/2 dispatches
+on f4b7461): the "Sport på TV nu" row was hidden whenever channels were reloading, so a background
+reload (guide refresh, source sync) removed the focused card and focus fell to the hero. The row now
+keeps the last loaded channels until a reload finishes. Test:
+`NativeSportHubTest.liveSportRowKeepsFocusWhileChannelsReload` (required in CI).
+
 ### Not done yet (M2–M4)
 Unified hub/calendar/My teams, sport filters, ranked Watch Match fallback, performance before/after on
 the 12k synthetic library, 720p/1080p screenshots review, Swedish release notes for a QA proposal.
