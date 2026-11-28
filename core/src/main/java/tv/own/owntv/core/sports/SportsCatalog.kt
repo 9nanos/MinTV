@@ -113,6 +113,10 @@ object SportsCatalog {
         League(Sport.HOCKEY, "nhl", "NHL", country = "US"),
         League(Sport.HOCKEY, "olympics-mens-ice-hockey", "Olympic Men's Ice Hockey", aliases = listOf("Olympic Ice Hockey")),
         League(Sport.HOCKEY, "olympics-womens-ice-hockey", "Olympic Women's Ice Hockey"),
+        // Min TV: Swedish leagues ESPN does not carry. The app binds a source for these two slugs
+        // (Swedish Ice Hockey Association's public schedule); a build without one shows them unavailable.
+        League(Sport.HOCKEY, "swe.shl", "SHL", country = "SE", aliases = listOf("Svenska Hockeyligan")),
+        League(Sport.HOCKEY, "swe.allsvenskan", "HockeyAllsvenskan", "HA", "SE", aliases = listOf("Hockeyallsvenskan")),
         // American football
         League(Sport.FOOTBALL, "nfl", "NFL", country = "US"),
         League(Sport.FOOTBALL, "college-football", "College Football", "NCAAF", "US", aliases = listOf("NCAAF", "NCAA Football"), group = 80),

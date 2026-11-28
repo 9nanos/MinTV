@@ -4032,7 +4032,10 @@
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	German Cup
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Gold Cup
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Greek Super League
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	HA
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Handball-Bundesliga
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	HockeyAllsvenskan
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Hockeyallsvenskan
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	ICC World Cup
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	IN
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	ISL
@@ -4145,7 +4148,8 @@
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Rugby World Cup
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Rugby-WM
 2	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	SA
-1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	SE
+3	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	SE
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	SHL
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	SPFL Premiership
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Saudi Pro League
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Scottish Cup
@@ -4175,6 +4179,7 @@
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Supercoupe de l'UEFA
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Superliga
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Superligaen
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Svenska Hockeyligan
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Swiss Super League
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	Süper Lig
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	T20 World Cup
@@ -4319,6 +4324,8 @@
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	sco.tennents
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	sui.1
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	swe.1
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	swe.allsvenskan
+1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	swe.shl
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	tur.1
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	tur.2
 1	technical	core/src/main/java/tv/own/owntv/core/sports/SportsCatalog.kt	uefa.champions
