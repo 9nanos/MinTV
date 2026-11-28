@@ -92,7 +92,9 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
         onDispose { onEntryHook(null) }
     }
     tv.own.owntv.features.shell.NativePlaybackContentEntry(restoreAfterPlayback, profileId.toString(),
-        if (sportsOpen) sportsEntry else if (hubOpen) hubReturnEntry else returnEntry, onHeader, onPlaybackReturnFinished)
+        // The upstream section restores its own played row (SportsPlayback.lastPlayedChannelId); only
+        // finish the return here, so its tabs never take focus from that row.
+        if (sportsOpen) ({ true }) else if (hubOpen) hubReturnEntry else returnEntry, onHeader, onPlaybackReturnFinished)
     Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() }.focusGroup()) {
         MinSportCompanion(true, usable && !hubOpen && !sportsOpen, liveVm, profileId, favorites, onPlay, 64.mpx, onSources,
             reservedTop = 32.mpx, compact = false, onSettings = { onSettings(MinTvSettingsDestination.SPORT) },

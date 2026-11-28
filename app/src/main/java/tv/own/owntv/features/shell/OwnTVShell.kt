@@ -234,7 +234,9 @@ fun OwnTVShell(
     // Where ▶ out of the Stage rail returns to: the content, exactly as it was left.
     val contentAreaFocus = remember(activeProfileId) { FocusRequester() }
     var sportEntry by remember(activeProfileId) { mutableStateOf<(() -> Boolean)?>(null) }
-    val sportPlaybackReturn = rememberSportPlaybackReturn(activeProfileId, selectedSection, presentation)
+    // MainSection.SPORTS (Settings → My teams, the player's match button) shows the one Sport destination too.
+    val sportPlaybackReturn = rememberSportPlaybackReturn(activeProfileId, selectedSection,
+        presentation ?: TopDestination.SPORT.takeIf { selectedSection == MainSection.SPORTS })
     var homeEntry by remember(activeProfileId) { mutableStateOf<(() -> Boolean)?>(null) }
     var homeSetupOpen by rememberSaveable(activeProfileId) { mutableStateOf(false) }
     // The guide's entry hook: the TV Guide, or Live TV in Guide view (null while Live TV shows its list).
