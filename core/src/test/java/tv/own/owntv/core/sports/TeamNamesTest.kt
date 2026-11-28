@@ -77,4 +77,22 @@ class TeamNamesTest {
         assertFalse(TeamNames.variantsOf(manUtd).contains(setOf("manchester")))
         assertFalse(found(besiktas, "Istanbul derby preview"))
     }
+
+    @Test fun `a source's aliases match the guide's other spellings, never a two-letter one alone`() {
+        val fbk = Team("hockey:farjestad", "Färjestad BK", aliases = listOf("Färjestad", "Färjestads", "FBK", "HV"))
+        assertTrue(found(fbk, "Hockey: Färjestad - Skellefteå"))
+        assertTrue(found(fbk, "SHL: Färjestads BK – Frölunda HC"))
+        assertTrue(found(fbk, "FBK - LHF"))
+        assertTrue(found(fbk, "Farjestad vs Brynas"))
+        assertFalse(found(fbk, "HV71 - Luleå"))
+        assertFalse(found(Team("x", "Färjestad BK"), "FBK - LHF"))
+    }
+
+    @Test fun `aliases survive the cache`() {
+        val t = Team("hockey:leksand", "Leksands IF", aliases = listOf("Leksand", "LIF"))
+        val m = tv.own.owntv.core.sports.model.Match("1", tv.own.owntv.core.sports.model.Sport.HOCKEY, "hockey/swe.allsvenskan",
+            "swe.allsvenskan", "HockeyAllsvenskan", 0L, tv.own.owntv.core.sports.model.MatchState.PRE, "", "Leksand – AIK",
+            competitors = listOf(tv.own.owntv.core.sports.model.Competitor(t, true, null, null)))
+        assertEquals(t.aliases, SportsCacheJson.matchFromJson(SportsCacheJson.matchJson(m))!!.competitors.single().team.aliases)
+    }
 }

@@ -89,6 +89,8 @@ object TeamNames {
             add(display.filter { it !in locTokens })
         }
         team.abbreviation.lowercase().takeIf { it.length >= 3 && it.all(Char::isLetter) }?.let { add(listOf(it)) }
+        // A source's other names; a one-token alias needs 3+ characters so "HV" alone never matches.
+        team.aliases.forEach { alias -> tokens(alias).takeIf { it.size > 1 || it.singleOrNull()?.length?.let { n -> n >= 3 } == true }?.let(::add) }
         return out.toList()
     }
 

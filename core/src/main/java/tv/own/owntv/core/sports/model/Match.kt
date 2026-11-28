@@ -16,6 +16,11 @@ data class Team(
     val logoUrl: String? = null,
     val isAthlete: Boolean = false,
     val country: String? = null,
+    /**
+     * Other names a guide may use for the team ("FBK", "Färjestads BK", "Farjestad"), from a source
+     * that knows them. Matching only: never shown. Empty for ESPN teams.
+     */
+    val aliases: List<String> = emptyList(),
 )
 
 /** One period's score: a quarter's points, a set's games (with the tie-break points when one was played). */

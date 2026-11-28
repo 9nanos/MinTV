@@ -225,6 +225,7 @@ internal object SportsCacheJson {
     private fun team(t: Team) = JSONObject()
         .put("id", t.id).put("n", t.name).put("sn", t.shortName).put("ab", t.abbreviation)
         .putOpt("lo", t.location).putOpt("img", t.logoUrl).put("at", t.isAthlete).putOpt("co", t.country)
+        .apply { if (t.aliases.isNotEmpty()) put("al", JSONArray(t.aliases)) }
 
     private fun team(o: JSONObject) = Team(
         id = o.getString("id"),
@@ -235,6 +236,7 @@ internal object SportsCacheJson {
         logoUrl = o.optStringOrNull("img"),
         isAthlete = o.optBoolean("at"),
         country = o.optStringOrNull("co"),
+        aliases = o.optJSONArray("al")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty(),
     )
 
     private fun event(e: MatchEvent) = JSONObject()
