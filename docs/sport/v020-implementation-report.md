@@ -91,11 +91,11 @@ reload (guide refresh, source sync) removed the focused card and focus fell to t
 keeps the last loaded channels until a reload finishes. Test:
 `NativeSportHubTest.liveSportRowKeepsFocusWhileChannelsReload` (required in CI).
 
-The decisive cause (shown by a focus dump in CI): Sport restored the card remembered from an earlier
-visit. When that visit happened before the channels had loaded, the remembered card was in the hero or
-"Mina lag", below the live row, so Down never reached a channel. Entering Sport from the header now
-lands on the first live sports channel whenever that row exists; returns from playback and the hub keep
-their exact-card restore.
+The decisive cause (shown by a focus dump in CI): on a revisit the live row came back only after its
+reload, so header entry restored the card remembered from the previous visit (hero / "Mina lag", below
+the row) and Down never reached a channel. Now the last loaded row is kept in memory per profile, so it
+is there at once, and header entry (only) lands on the first live sports channel; returns from the hub
+and from playback use their own entry and restore the exact card.
 
 ### Not done yet (M2–M4)
 Unified hub/calendar/My teams, sport filters, ranked Watch Match fallback, performance before/after on

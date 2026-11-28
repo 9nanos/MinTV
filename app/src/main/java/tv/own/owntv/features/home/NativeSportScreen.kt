@@ -54,6 +54,8 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
     val pendingMatch by sportsPlayback.pendingMatch.collectAsStateWithLifecycle()
     var sportsOpen by rememberSaveable(profileId) { mutableStateOf(false) }
     var sportsEntry by remember(profileId) { mutableStateOf<(() -> Boolean)?>(null) }
+    // Header entry only: the first live sports channel when that row exists (returns use returnEntry).
+    var liveEntry by remember(profileId) { mutableStateOf<(() -> Boolean)?>(null) }
     var focusSports by remember(profileId) { mutableStateOf(false) }
     var refocusHub by remember(profileId) { mutableStateOf(false) }
     LaunchedEffect(pendingTeam, pendingMatch) {
@@ -84,8 +86,9 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
             if (returnEntry?.invoke() == true) restoreBase = false
         }
     }
-    DisposableEffect(profileId, hubOpen, sportsOpen, baseEntry, hubEntry, sportsEntry) {
-        onEntryHook(if (sportsOpen) sportsEntry else if (hubOpen) hubEntry else baseEntry)
+    DisposableEffect(profileId, hubOpen, sportsOpen, baseEntry, hubEntry, sportsEntry, liveEntry) {
+        val header = baseEntry?.let { base -> { liveEntry?.invoke() == true || base() } }
+        onEntryHook(if (sportsOpen) sportsEntry else if (hubOpen) hubEntry else header)
         onDispose { onEntryHook(null) }
     }
     tv.own.owntv.features.shell.NativePlaybackContentEntry(restoreAfterPlayback, profileId.toString(),
@@ -96,7 +99,7 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
             dashboard = { data, actions, first, entry -> NativeSportDashboard(data, actions, first, entry, onHeader,
                 onExplore = if (profileId != null) ({ openHub(HubRoute(HubPage.DISCOVER)) }) else null,
                 hubReads = hubReads, onHubTeam = { openHub(HubRoute(HubPage.TEAM,it.league,it.id)) },
-                onHubMatch = { openHub(HubRoute(HubPage.MATCH,it.league,it.id)) }, onHubMine = { openHub(HubRoute(HubPage.MINE)) }) },
+                onHubMatch = { openHub(HubRoute(HubPage.MATCH,it.league,it.id)) }, onHubMine = { openHub(HubRoute(HubPage.MINE)) }, onLiveEntry = { liveEntry = it }) },
             onMatchcenterEntry = { baseEntry = it }, onPlaybackReturnEntry = { returnEntry = it }) { hockey, _ -> hockey() }
         if (hubOpen && profileId != null) SportHubScreen(profileId, usable && !sportsOpen, liveVm, favorites, onPlay,
             { onSettings(MinTvSettingsDestination.SPORT) }, {

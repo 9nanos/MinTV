@@ -177,8 +177,9 @@ class NativeSportHubTest {
         compose.waitForIdle()
         compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
     }
-    /** v0.20: a card remembered before the live row first loaded is stale; the next entry starts live. */
+    /** v0.20: header entry starts on the live row once it has loaded, even after a card was remembered. */
     @Test fun liveSportRowArrivingLaterIsTheNextEntry() {
+        var liveEntry: (() -> Boolean)? = null
         val at=Instant.parse("2026-11-09T12:00:00Z")
         val channels=(1..2).map { tv.own.owntv.core.database.entity.ChannelEntity(id=600L+it,sourceId=101,name="TV4 Sport Live $it HD",
             streamUrl="https://example.invalid/synthetic/$it") }
@@ -186,16 +187,17 @@ class NativeSportHubTest {
         compose.setContent {
             MaterialTheme {
                 val first=remember { FocusRequester() }
-                NativeSportDashboard(NativeSportSnapshot(1,at.toEpochMilli(),SportPreferences(),null,emptyList(),emptyList(),
+                NativeSportDashboard(NativeSportSnapshot(77,at.toEpochMilli(),SportPreferences(),null,emptyList(),emptyList(),
                     if (loading) emptyList() else channels,channelsLoading=loading),
-                    NativeSportActions({}, {}, {}, {}, {}),first,{entry=it},{})
+                    NativeSportActions({}, {}, {}, {}, {}),first,{entry=it},{},onLiveEntry={liveEntry=it})
                 LaunchedEffect(Unit) { repeat(2) { withFrameNanos { } };entry?.invoke() }
             }
         }
         compose.onNodeWithTag("sport-empty-action").assertIsFocused()
+        compose.runOnIdle { assertTrue(liveEntry?.invoke() == false) } // nothing live yet
         compose.runOnIdle { loading=false }
         compose.waitForIdle()
-        compose.runOnIdle { assertTrue(entry?.invoke() == true) }
+        compose.runOnIdle { assertTrue(liveEntry?.invoke() == true) }
         compose.waitForIdle()
         compose.onNodeWithTag("sport-live-601").assertIsFocused()
     }

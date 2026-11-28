@@ -7,6 +7,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -14,7 +15,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -66,7 +66,7 @@ internal class NativeSportActions(val details: (SportFixture) -> Unit, val chann
 internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSportActions, first: FocusRequester,
     onEntry: ((() -> Boolean)?) -> Unit, onHeader: () -> Unit, modifier: Modifier = Modifier, onExplore: (() -> Unit)? = null,
     hubReads: Map<String,HubRead> = emptyMap(), onHubTeam: ((HubFollow) -> Unit)? = null, onHubMatch: ((HubMatch) -> Unit)? = null,
-    onHubMine: (() -> Unit)? = null) {
+    onHubMine: (() -> Unit)? = null, onLiveEntry: ((() -> Boolean)?) -> Unit = {}) {
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     // The featured scheduled fixture already has its own primary/detail actions.
     val featured = data.hero?.takeIf { it.status == MatchStatus.SCHEDULED }?.id
@@ -83,8 +83,12 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
     // Sport is for watching first: real local sports channels lead, independent of any match data.
     // A background channel reload (guide refresh, source sync) must not blank the row the remote is
     // on: keep the last loaded list until the reload finishes, so focus never falls off a removed card.
-    val loadedLive = remember(data.profile) { mutableStateOf<List<ChannelEntity>>(emptyList()) }
-    LaunchedEffect(data.profile, data.channels, data.channelsLoading) { if (!data.channelsLoading) loadedLive.value = data.channels }
+    // The last loaded list also survives leaving Sport (in memory, per profile), so a revisit shows the
+    // row at once instead of after the reload, and header entry can land on it.
+    val loadedLive = remember(data.profile) { mutableStateOf(SportLiveRowMemory.get(data.profile)) }
+    LaunchedEffect(data.profile, data.channels, data.channelsLoading) {
+        if (!data.channelsLoading) { loadedLive.value = data.channels; SportLiveRowMemory.put(data.profile, data.channels) }
+    }
     val live = if (data.channelsLoading) loadedLive.value else data.channels
     val rows = buildList {
         if (live.isNotEmpty()) add(NativeRow("sport-live", live.map { "sport-live-${it.id}" } + "sport-live-all"))
@@ -97,25 +101,18 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
         if (upcoming.isNotEmpty()) add(NativeRow("sport-upcoming", upcoming.take(12).map { "sport-upcoming-${it.id}" }))
         if (data.publicSourceUsed) add(NativeRow("sport-attribution", listOf("sport-attribution-link"), horizontalRail = false))
     }
-    // v0.20: when the live row appears after focus last left Sport (a visit made before the channels
-    // had loaded), the remembered card sits below it and is stale: the next entry lands on the first
-    // live channel. Any focus inside Sport clears this, so hub and playback returns restore exactly.
+    // v0.20: header entry (only) lands on the first live sports channel; returns restore exactly.
     val hasLive = live.isNotEmpty()
-    // Saveable, and armed only the first time the row appears for this profile, so leaving for the
-    // player or a channel reload never re-arms it and a return still restores the exact card.
-    val preferLive = androidx.compose.runtime.saveable.rememberSaveable(data.profile) { mutableStateOf(false) }
-    val seenLive = androidx.compose.runtime.saveable.rememberSaveable(data.profile) { mutableStateOf(false) }
-    LaunchedEffect(data.profile, hasLive) { if (hasLive && !seenLive.value) { seenLive.value = true; preferLive.value = true } }
     val currentHasLive by rememberUpdatedState(hasLive)
-    val liveFirstEntry: ((() -> Boolean)?) -> Unit = remember(onEntry, first) { { restore ->
-        onEntry(restore?.let { fallback -> { (preferLive.value && currentHasLive && first.requestSafely()) || fallback() } })
-    } }
-    val nav = rememberNativeRowsNavigation(rows, data.profile, first, liveFirstEntry, onHeader)
+    DisposableEffect(first, onLiveEntry) {
+        onLiveEntry { currentHasLive && first.requestSafely() }
+        onDispose { onLiveEntry(null) }
+    }
+    val nav = rememberNativeRowsNavigation(rows, data.profile, first, onEntry, onHeader)
     BoxWithConstraints(modifier.fillMaxSize().background(DesignLabBackground)) {
         val width = (maxWidth - 128.mpx - 54.mpx) / 4
         LazyColumn(state = nav.list, contentPadding = PaddingValues(horizontal = 64.mpx, vertical = 28.mpx),
-            verticalArrangement = Arrangement.spacedBy(24.mpx), modifier = Modifier.fillMaxSize().then(nav.modifier)
-                .onFocusChanged { if (it.hasFocus) preferLive.value = false }.focusGroup()) {
+            verticalArrangement = Arrangement.spacedBy(24.mpx), modifier = Modifier.fillMaxSize().then(nav.modifier).focusGroup()) {
             if (live.isNotEmpty()) item(key = "sport-live") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.mpx)) {
                     TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)
@@ -262,4 +259,11 @@ private fun SportFixtureRail(label: String, fixtures: List<SportFixture>, id: St
             }
         }
     }
+}
+
+/** The last loaded live sports channels per profile, for an instant row on a revisit. In memory only. */
+internal object SportLiveRowMemory {
+    private val lists = java.util.concurrent.ConcurrentHashMap<Long, List<ChannelEntity>>()
+    fun get(profile: Long?): List<ChannelEntity> = profile?.let { lists[it] }.orEmpty()
+    fun put(profile: Long?, channels: List<ChannelEntity>) { if (profile != null) lists[profile] = channels }
 }
