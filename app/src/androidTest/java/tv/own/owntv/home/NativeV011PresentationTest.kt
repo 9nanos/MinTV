@@ -573,7 +573,12 @@ class NativeV011PresentationTest {
         mount(); enter(TopDestination.SPORT)
         compose.onNodeWithTag("sport-live-100").assertIsFocused().assertIsDisplayed()
         // No stored guide in this fixture: the card stays playable and says so honestly.
-        compose.onNodeWithTag("sport-live-100").assert(hasText(compose.activity.getString(R.string.mintv_v08_empty_now), substring = true))
+        // Compose can render in another locale than Activity.getString in this process: accept either copy.
+        val noGuide = listOf(java.util.Locale.ENGLISH, java.util.Locale.forLanguageTag("sv")).map { locale ->
+            compose.activity.createConfigurationContext(android.content.res.Configuration(compose.activity.resources.configuration)
+                .apply { setLocale(locale) }).getString(R.string.mintv_v08_empty_now)
+        }
+        compose.onNodeWithTag("sport-live-100").assert(noGuide.map { hasText(it, substring = true) }.reduce { a, b -> a or b })
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertEquals(1, played); assertEquals(0, manualChoices); assertEquals(0, details)
         press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("sport-live-101").assertIsFocused()
