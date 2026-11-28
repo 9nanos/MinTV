@@ -353,6 +353,13 @@ class PerformanceJourneyTest {
                     // Reach Explore the way a remote does (Down into the hero, then Right), as the startup
                     // regression does; a semantic focus request from the header no longer sticks here.
                     press(KeyEvent.KEYCODE_DPAD_DOWN)
+                    // Content entry is asynchronous; a Right sent before focus arrives would move along the header.
+                    compose.waitUntil(5_000) { compose.onAllNodes(SemanticsMatcher("focused Sport content") {
+                        it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                            it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") &&
+                            it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Focused) &&
+                            it.config[androidx.compose.ui.semantics.SemanticsProperties.Focused]
+                    }).fetchSemanticsNodes().isNotEmpty() }
                     repeat(4) {
                         if (runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false)) return@repeat
                         press(KeyEvent.KEYCODE_DPAD_RIGHT)
