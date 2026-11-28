@@ -346,7 +346,11 @@ class PerformanceJourneyTest {
                     chooseSyntheticProfile(); waitTag("top-SPORT")
                     focus("top-SPORT"); press(KeyEvent.KEYCODE_DPAD_CENTER); ready("SPORT")
                     waitTag("sport-hero-explore"); focus("sport-hero-explore");press(KeyEvent.KEYCODE_DPAD_CENTER)
-                    waitTag("hub-back")
+                    try { waitTag("hub-back") } catch (error: Throwable) {
+                        // Diagnostics: show where focus and content are when the hub does not open.
+                        throw AssertionError("Sport hub did not open:\n" +
+                            compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 9).take(6_000), error)
+                    }
                     compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("hub-back").assertIsFocused(); true }.getOrDefault(false) }
                     capture(scenario,"SPORT_HUB_DISCOVERY")
                     press(KeyEvent.KEYCODE_DPAD_DOWN);press(KeyEvent.KEYCODE_DPAD_RIGHT)
