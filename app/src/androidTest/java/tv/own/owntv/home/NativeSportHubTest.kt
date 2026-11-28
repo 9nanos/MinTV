@@ -55,6 +55,7 @@ class NativeSportHubTest {
     @Before fun disposableOnly() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("disposableEmulator") == "true" && shell("getprop ro.kernel.qemu").trim() == "1")
         instrumentation.setInTouchMode(false)
+        tv.own.owntv.features.home.SportLiveRowMemory.clear()
         compose.runOnUiThread {
             WindowCompat.setDecorFitsSystemWindows(compose.activity.window, false)
             WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView).hide(WindowInsetsCompat.Type.systemBars())

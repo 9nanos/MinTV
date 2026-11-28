@@ -266,4 +266,6 @@ internal object SportLiveRowMemory {
     private val lists = java.util.concurrent.ConcurrentHashMap<Long, List<ChannelEntity>>()
     fun get(profile: Long?): List<ChannelEntity> = profile?.let { lists[it] }.orEmpty()
     fun put(profile: Long?, channels: List<ChannelEntity>) { if (profile != null) lists[profile] = channels }
+    /** Tests that reuse profile IDs start from nothing. */
+    fun clear() = lists.clear()
 }
