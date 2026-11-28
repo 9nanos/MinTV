@@ -115,7 +115,10 @@ class PerformanceJourneyTest {
         when (destination) {
             "HOME" -> { waitTag("smart-channel-svt1"); waitTag("smart-hero-play") }
             "TV" -> waitTag("swedish-channel-svt1")
-            "MOVIES", "SERIES" -> waitTag("vod-search") // the synthetic dataset syncs no movies or series
+            // Search when the dataset syncs no movies or series; otherwise the tab's first rows.
+            "MOVIES", "SERIES" -> compose.waitUntil(20_000) { compose.onAllNodes(SemanticsMatcher("Film/Serier content") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("vod-") == true
+            }).fetchSemanticsNodes().isNotEmpty() }
             "PROFILE" -> waitTag("settings-categories")
         }
     }
