@@ -153,14 +153,8 @@ fun OwnTVShell(
     val onSelectSection: (MainSection) -> Unit = { section ->
         if (section == MainSection.SEARCH && selectedSection != MainSection.SEARCH) searchParent = primary
         if (section == MainSection.LIVE_TV || section == MainSection.EPG) lastTv = section
-        // 0.20: the upstream Sports section opens inside Min TV's one Sport destination, never as a page of its own.
-        if (section == MainSection.SPORTS) {
-            presentation = TopDestination.SPORT
-            onSelectLegacySection(MainSection.HOME)
-        } else {
-            presentation = null
-            onSelectLegacySection(section)
-        }
+        presentation = null
+        onSelectLegacySection(section)
     }
     val colors = OwnTVTheme.colors
     val noSourceLabel = stringResource(R.string.shell_no_source)
@@ -1073,7 +1067,8 @@ fun OwnTVShell(
           } else null
           val tryEnterNativeContent: () -> Boolean = {
               restoreFocus = true
-              val hook = if (presentation == TopDestination.SPORT) sportEntry else when (selectedSection) {
+              // 0.20: MainSection.SPORTS (Settings → My teams, the player's match button) shows the one Sport destination.
+              val hook = if (presentation == TopDestination.SPORT || selectedSection == MainSection.SPORTS) sportEntry else when (selectedSection) {
                   MainSection.HOME -> homeEntry
                   MainSection.EPG, MainSection.LIVE_TV -> guideEntry
                   MainSection.MOVIES, MainSection.SERIES -> vodEntry
