@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -96,19 +97,25 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
         if (upcoming.isNotEmpty()) add(NativeRow("sport-upcoming", upcoming.take(12).map { "sport-upcoming-${it.id}" }))
         if (data.publicSourceUsed) add(NativeRow("sport-attribution", listOf("sport-attribution-link"), horizontalRail = false))
     }
-    // v0.20: entering Sport from the header lands on the first live sports channel whenever that row
-    // exists, not on a card remembered from a visit made before the channels had loaded. Returns from
-    // playback and from the hub use their own entries and still restore the exact card.
+    // v0.20: when the live row appears after focus last left Sport (a visit made before the channels
+    // had loaded), the remembered card sits below it and is stale: the next entry lands on the first
+    // live channel. Any focus inside Sport clears this, so hub and playback returns restore exactly.
     val hasLive = live.isNotEmpty()
+    // Saveable, and armed only the first time the row appears for this profile, so leaving for the
+    // player or a channel reload never re-arms it and a return still restores the exact card.
+    val preferLive = androidx.compose.runtime.saveable.rememberSaveable(data.profile) { mutableStateOf(false) }
+    val seenLive = androidx.compose.runtime.saveable.rememberSaveable(data.profile) { mutableStateOf(false) }
+    LaunchedEffect(data.profile, hasLive) { if (hasLive && !seenLive.value) { seenLive.value = true; preferLive.value = true } }
     val currentHasLive by rememberUpdatedState(hasLive)
     val liveFirstEntry: ((() -> Boolean)?) -> Unit = remember(onEntry, first) { { restore ->
-        onEntry(restore?.let { fallback -> { (currentHasLive && first.requestSafely()) || fallback() } })
+        onEntry(restore?.let { fallback -> { (preferLive.value && currentHasLive && first.requestSafely()) || fallback() } })
     } }
     val nav = rememberNativeRowsNavigation(rows, data.profile, first, liveFirstEntry, onHeader)
     BoxWithConstraints(modifier.fillMaxSize().background(DesignLabBackground)) {
         val width = (maxWidth - 128.mpx - 54.mpx) / 4
         LazyColumn(state = nav.list, contentPadding = PaddingValues(horizontal = 64.mpx, vertical = 28.mpx),
-            verticalArrangement = Arrangement.spacedBy(24.mpx), modifier = Modifier.fillMaxSize().then(nav.modifier).focusGroup()) {
+            verticalArrangement = Arrangement.spacedBy(24.mpx), modifier = Modifier.fillMaxSize().then(nav.modifier)
+                .onFocusChanged { if (it.hasFocus) preferLive.value = false }.focusGroup()) {
             if (live.isNotEmpty()) item(key = "sport-live") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.mpx)) {
                     TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)

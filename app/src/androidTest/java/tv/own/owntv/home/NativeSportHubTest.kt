@@ -172,10 +172,32 @@ class NativeSportHubTest {
         compose.onNodeWithTag("sport-live-502").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
-        // Entering again from the header lands on the first live channel, not the remembered hero card.
+        // A focused card is remembered: entering again restores it exactly.
         compose.runOnIdle { assertTrue(entry?.invoke() == true) }
         compose.waitForIdle()
-        compose.onNodeWithTag("sport-live-501").assertIsFocused()
+        compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
+    }
+    /** v0.20: a card remembered before the live row first loaded is stale; the next entry starts live. */
+    @Test fun liveSportRowArrivingLaterIsTheNextEntry() {
+        val at=Instant.parse("2026-11-09T12:00:00Z")
+        val channels=(1..2).map { tv.own.owntv.core.database.entity.ChannelEntity(id=600L+it,sourceId=101,name="TV4 Sport Live $it HD",
+            streamUrl="https://example.invalid/synthetic/$it") }
+        var loading by mutableStateOf(true)
+        compose.setContent {
+            MaterialTheme {
+                val first=remember { FocusRequester() }
+                NativeSportDashboard(NativeSportSnapshot(1,at.toEpochMilli(),SportPreferences(),null,emptyList(),emptyList(),
+                    if (loading) emptyList() else channels,channelsLoading=loading),
+                    NativeSportActions({}, {}, {}, {}, {}),first,{entry=it},{})
+                LaunchedEffect(Unit) { repeat(2) { withFrameNanos { } };entry?.invoke() }
+            }
+        }
+        compose.onNodeWithTag("sport-empty-action").assertIsFocused()
+        compose.runOnIdle { loading=false }
+        compose.waitForIdle()
+        compose.runOnIdle { assertTrue(entry?.invoke() == true) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("sport-live-601").assertIsFocused()
     }
     @Test fun mainSportShowsFollowedPublicLeagueAndRevocationRemovesOnlyItsMatches() {
         run {
