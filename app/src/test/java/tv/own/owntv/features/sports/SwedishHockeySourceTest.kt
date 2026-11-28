@@ -43,7 +43,7 @@ class SwedishHockeySourceTest {
         override suspend fun refresh(competition: Competition, now: Long): SportSnapshot? { refreshes++; return null }
         override suspend fun standings(competition: Competition, season: String, now: Long): HockeyTable? = null
         override suspend fun cachedStandings(competition: Competition, season: String) =
-            HockeyTable(season, listOf(ShlStanding(1, "Färjestad BK", 40, 20, 15), ShlStanding(2, "Frölunda HC", 38, 20, -2)), now)
+            HockeyTable(season, listOf(ShlStanding(1, "Färjestad BK", 40, 20, 15, 12, 4, 4, 60, 45), ShlStanding(2, "Frölunda HC", 38, 20, -2, 11, 5, 4, 50, 52)), now)
     }
 
     private object Espn : SportsSource {
@@ -102,6 +102,24 @@ class SwedishHockeySourceTest {
         assertEquals(SportsCatalog.farjestadId, rows.first().team.id)
         assertEquals("+15", rows.first().difference); assertEquals("-2", rows[1].difference)
         assertEquals(40, rows.first().points)
+        val fbk = rows.first()
+        assertEquals(listOf(12, 4, 4, 60, 45), listOf(fbk.won, fbk.drawn, fbk.lost, fbk.scored, fbk.conceded))
+        // Swedish tables use M V O F MS P, never the NHL set with overtime losses the source does not have.
+        assertEquals(listOf("20", "12", "4", "4", "+15", "40"),
+            tableColumns(shl.sport, shl.key).map { it.valueOf(fbk) })
+    }
+
+    @Test fun `a team only the table names keeps the schedule's team ID`() = runBlocking {
+        val unknown = SportsCatalog.make("IK Exempel", tv.own.owntv.features.home.Sport.ICE_HOCKEY)
+        assertTrue(unknown.id.startsWith("hockey:"))
+    }
+
+    @Test fun `ESPN's US-Eastern today means Stockholm's today for a Swedish league`() = runBlocking {
+        val lateNight = LocalDateTime.of(2026, 11, 29, 1, 0).atZone(Stockholm).toInstant().toEpochMilli()
+        val src = SwedishHockeySource(Espn, data, "Slut", { h, a -> "$h – $a" }) { lateNight }
+        val eastern = tv.own.owntv.core.sports.SportsRefreshPolicy.espnDay(lateNight)
+        assertEquals(LocalDate.of(2026, 11, 28), eastern)
+        assertTrue(src.scoreboard(shl, eastern).isEmpty()) // 29 Nov in Stockholm: no game that day
     }
 
     @Test fun `every other league still goes to ESPN`() = runBlocking {

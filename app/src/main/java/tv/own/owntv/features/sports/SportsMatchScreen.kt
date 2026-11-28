@@ -578,8 +578,8 @@ private fun TablePreview(table: StandingsTable?, m: Match, onOpenLeague: (Match)
     val group = table?.groups?.firstOrNull { g -> g.rows.any { r -> m.competitors.any { it.team.id == r.team.id } } } ?: table?.groups?.firstOrNull() ?: return
     StageSurface(onClick = { onOpenLeague(m) }, radius = 20.mpx, focusStyle = StageFocus.FX, modifier = Modifier.fillMaxWidth().padding(top = 9.mpx)) { _ ->
         Column(Modifier.fillMaxWidth().padding(18.mpx)) {
-            StandingsHeader(m.sport)
-            group.rows.forEach { row -> StandingsLine(row, m.sport, highlight = m.competitors.any { it.team.id == row.team.id }) }
+            StandingsHeader(m.sport, table?.leagueKey)
+            group.rows.forEach { row -> StandingsLine(row, m.sport, highlight = m.competitors.any { it.team.id == row.team.id }, leagueKey = table?.leagueKey) }
         }
     }
 }

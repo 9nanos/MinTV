@@ -200,8 +200,8 @@ internal fun SportsTeamScreen(
                     val at = rows?.indexOfFirst { it.team.id == team.id } ?: -1
                     if (rows != null && at >= 0) {
                         InfoBox(stringResource(R.string.sports_league_position)) {
-                            StandingsHeader(ref.league.sport)
-                            neighbours(rows, at).forEach { r -> StandingsLine(r, ref.league.sport, highlight = r.team.id == team.id) }
+                            StandingsHeader(ref.league.sport, ref.league.key)
+                            neighbours(rows, at).forEach { r -> StandingsLine(r, ref.league.sport, highlight = r.team.id == team.id, leagueKey = ref.league.key) }
                         }
                     }
                 }

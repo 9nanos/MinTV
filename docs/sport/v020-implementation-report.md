@@ -80,6 +80,11 @@ consent. Next step: bring SHL/HA into the upstream engine so the hub can be reti
   when the stored season is older than 30 min, else the stored copy) and passes every other league to
   ESPN. Results are final; a game without a result is never shown live from its start time alone.
 - Tests: `SwedishHockeySourceTest` (day, month, team schedule, table, staleness, ESPN pass-through).
+- Table: the Swedish association's table has W, T (level after regulation), L and goals but no
+  overtime losses, so SHL/HA tables use `M V O F MS P` (`tableColumns`) instead of the NHL set; tables
+  cached before these fields existed are refreshed once, never shown as zeros. Unknown table teams keep
+  the schedule's team ID. Core's US-Eastern "today" maps to Stockholm's today. With the source turned
+  off and nothing stored, Swedish leagues show no games instead of an ESPN error.
 - Next: once the upstream pages are checked on device with SHL followed, retire the hub's own SHL
   pages so Sport has a single engine.
 

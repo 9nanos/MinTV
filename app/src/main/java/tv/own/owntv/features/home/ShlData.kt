@@ -14,7 +14,9 @@ internal data class ShlGame(val id: String, val home: String, val away: String, 
     fun on(date: LocalDate) = Instant.ofEpochMilli(faceoff).atZone(Stockholm).toLocalDate() == date
 }
 internal data class ShlStanding(val rank: Int, val team: String, val points: Int,
-    val played: Int? = null, val goalDifference: Int? = null)
+    val played: Int? = null, val goalDifference: Int? = null,
+    /** The table's W / T / L (T: level after regulation) and goals; null on older cached tables. */
+    val won: Int? = null, val tied: Int? = null, val lost: Int? = null, val goalsFor: Int? = null, val goalsAgainst: Int? = null)
 internal data class ShlSnapshot(val seasonId: String, val games: List<ShlGame>, val fetchedAt: Long, val sourceUpdatedAt: Long? = null)
 internal enum class HockeyFormatReason { PAGE, COMPETITION, SEASON, ROUTE, HEADERS, ROWS, TEAMS }
 internal class HockeyFormatException(val reason: HockeyFormatReason) : IllegalArgumentException(reason.name)
@@ -130,7 +132,9 @@ internal object SwehockeyParser {
                 require(it.groupValues[3].isEmpty() || it.groupValues[3].toInt() == value)
                 value
             }
-            ShlStanding(rank, cells[1], cells[7].toInt(), played, difference)
+            fun count(i: Int) = cells[i].toIntOrNull()?.takeIf { it in 0..100 }
+            ShlStanding(rank, cells[1], cells[7].toInt(), played, difference, count(3), count(4), count(5),
+                goals?.groupValues?.get(1)?.toInt(), goals?.groupValues?.get(2)?.toInt())
         }
         require(ranks.isEmpty() || ranks.size == 14 && ranks.map { it.rank }.toSet() == (1..14).toSet())
         return ranks

@@ -1,6 +1,7 @@
 package tv.own.owntv.features.sports
 
 import tv.own.owntv.core.sports.MonthBoard
+import tv.own.owntv.core.sports.SportsRefreshPolicy
 import tv.own.owntv.core.sports.SportsSource
 import tv.own.owntv.core.sports.model.Competitor
 import tv.own.owntv.core.sports.model.League
@@ -15,6 +16,8 @@ import tv.own.owntv.core.sports.model.StandingsRow
 import tv.own.owntv.core.sports.model.StandingsTable
 import tv.own.owntv.core.sports.model.Team
 import tv.own.owntv.features.home.Competition
+import tv.own.owntv.features.home.HockeyDataException
+import tv.own.owntv.features.home.HockeyFailureKind
 import tv.own.owntv.features.home.SportFixture
 import tv.own.owntv.features.home.SportSnapshot
 import tv.own.owntv.features.home.SwedishHockeyData
@@ -44,6 +47,11 @@ internal class SwedishHockeySource(
         else -> null
     }
 
+    /** [fetch]'s result; on failure [fallback] when there is one, else the failure. */
+    private suspend fun <T> guarded(fallback: T?, fetch: suspend () -> T?): T? =
+        try { fetch() ?: fallback } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { fallback ?: throw e }
+
     /**
      * The stored season while it is fresh; otherwise one refresh, which the reader itself throttles and
      * backs off (robots, 403/429). A failed refresh falls back to what is stored.
@@ -51,17 +59,22 @@ internal class SwedishHockeySource(
     private suspend fun snapshot(competition: Competition): SportSnapshot {
         val stored = hockey.cached(competition)
         if (stored != null && clock() - stored.fetchedAt < FRESH_MS) return stored
-        val fresh = try { hockey.refresh(competition, clock()) } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { if (stored == null) throw e else null }
-        return fresh ?: stored ?: throw java.io.IOException("No Swedish hockey schedule for ${competition.id}")
+        return guarded(stored) { hockey.refresh(competition, clock()) }
+            ?: throw java.io.IOException("No Swedish hockey schedule for ${competition.id}")
     }
 
-    private suspend fun matches(league: League, competition: Competition): List<Match> =
+    /** Swedish hockey data turned off (opt-in) with nothing stored: no games, never an "ESPN unreachable". */
+    private suspend fun matches(league: League, competition: Competition): List<Match> = try {
         snapshot(competition).fixtures.map { it.toMatch(league) }
+    } catch (e: HockeyDataException) {
+        if (e.issue.kind == HockeyFailureKind.DISABLED) emptyList() else throw e
+    }
 
     override suspend fun scoreboard(league: League, day: LocalDate?): List<Match> {
         val competition = competition(league) ?: return other.scoreboard(league, day)
-        val date = day ?: Instant.ofEpochMilli(clock()).atZone(Stockholm).toLocalDate()
+        // Core asks for "today" as ESPN's US-Eastern date; for a Swedish league today is Stockholm's.
+        val now = clock()
+        val date = if (day == null || day == SportsRefreshPolicy.espnDay(now)) Instant.ofEpochMilli(now).atZone(Stockholm).toLocalDate() else day
         return matches(league, competition).filter { Instant.ofEpochMilli(it.startMs).atZone(Stockholm).toLocalDate() == date }
     }
 
@@ -91,12 +104,17 @@ internal class SwedishHockeySource(
     override suspend fun standings(league: League): StandingsTable {
         val competition = competition(league) ?: return other.standings(league)
         val season = snapshot(competition).seasonId
-        val table = hockey.cachedStandings(competition, season) ?: hockey.standings(competition, season, clock())
+        val stored = hockey.cachedStandings(competition, season)
+        // A table stored before W/T/L were kept is refreshed once (the reader throttles); never shown as zeros.
+        val table = stored?.takeIf { t -> t.rows.all { it.won != null && it.tied != null && it.lost != null } }
+            ?: guarded(stored) { hockey.standings(competition, season, clock()) }
             ?: throw java.io.IOException("No Swedish hockey table for ${competition.id}")
         val rows = table.rows.map { row ->
-            val team = SwedishCatalog.identity(row.team, tv.own.owntv.features.home.Sport.ICE_HOCKEY)?.coreTeam()
-                ?: Team(row.team, row.team)
-            StandingsRow(row.rank, team, played = row.played ?: 0, won = 0, drawn = 0, lost = 0, scored = 0, conceded = 0,
+            // The same team ID as the schedule's, so a table row opens that team's games.
+            val team = (SwedishCatalog.identity(row.team, tv.own.owntv.features.home.Sport.ICE_HOCKEY)
+                ?: SwedishCatalog.make(row.team, tv.own.owntv.features.home.Sport.ICE_HOCKEY)).coreTeam()
+            StandingsRow(row.rank, team, played = row.played ?: 0, won = row.won ?: 0, drawn = row.tied ?: 0, lost = row.lost ?: 0,
+                scored = row.goalsFor ?: 0, conceded = row.goalsAgainst ?: 0,
                 difference = row.goalDifference?.let { if (it > 0) "+$it" else "$it" } ?: "", points = row.points)
         }
         return StandingsTable(league.key, listOf(StandingsGroup(league.name, rows)))

@@ -42,13 +42,25 @@ private val StandingsColumn.label: Int get() = when (this) {
     StandingsColumn.POINTS -> R.string.sports_table_points
 }
 
+/**
+ * Min TV: SHL and HockeyAllsvenskan come from the Swedish association's table, which has W, T (level
+ * after regulation) and L but no overtime losses: they use the table columns `M V O F MS P`, never
+ * the NHL set with figures the source does not have.
+ */
+internal fun tableColumns(sport: Sport?, leagueKey: String?): List<StandingsColumn> =
+    if (leagueKey in SwedishTableLeagues) listOf(StandingsColumn.PLAYED, StandingsColumn.WON, StandingsColumn.DRAWN,
+        StandingsColumn.LOST, StandingsColumn.DIFFERENCE, StandingsColumn.POINTS)
+    else StandingsColumn.of(sport)
+
+private val SwedishTableLeagues = setOf("hockey/" + SwedishHockeySource.SHL_SLUG, "hockey/" + SwedishHockeySource.ALLSVENSKAN_SLUG)
+
 /** `# Team` and [sport]'s own columns (football: `P W D L GD Pts`), 16.5 px dim. */
 @Composable
-internal fun StandingsHeader(sport: Sport?) {
+internal fun StandingsHeader(sport: Sport?, leagueKey: String? = null) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.mpx, vertical = 6.mpx), verticalAlignment = Alignment.CenterVertically) {
         Text("#", style = stageText(16.5f, 700), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(42.mpx))
         Text(stringResource(R.string.sports_table_team), style = stageText(16.5f, 700), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        StandingsColumn.of(sport).forEach { Text(stringResource(it.label), style = stageText(16.5f, 700), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.width(NumberColumn)) }
+        tableColumns(sport, leagueKey).forEach { Text(stringResource(it.label), style = stageText(16.5f, 700), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.width(NumberColumn)) }
     }
 }
 
@@ -57,16 +69,17 @@ internal fun StandingsHeader(sport: Sport?) {
  * of My teams. With [onClick] the row takes focus and OK opens the team's page.
  */
 @Composable
-internal fun StandingsLine(row: StandingsRow, sport: Sport?, highlight: Boolean, modifier: Modifier = Modifier, star: Boolean = false, onClick: (() -> Unit)? = null) {
+internal fun StandingsLine(row: StandingsRow, sport: Sport?, highlight: Boolean, modifier: Modifier = Modifier, star: Boolean = false, onClick: (() -> Unit)? = null,
+    leagueKey: String? = null) {
     if (onClick == null) {
-        StandingsCells(row, sport, highlight, star, focused = false)
+        StandingsCells(row, sport, highlight, star, focused = false, leagueKey)
         return
     }
-    StageSurface(onClick = onClick, radius = 10.mpx, modifier = modifier.fillMaxWidth()) { focused -> StandingsCells(row, sport, highlight, star, focused) }
+    StageSurface(onClick = onClick, radius = 10.mpx, modifier = modifier.fillMaxWidth()) { focused -> StandingsCells(row, sport, highlight, star, focused, leagueKey) }
 }
 
 @Composable
-private fun StandingsCells(row: StandingsRow, sport: Sport?, highlight: Boolean, star: Boolean, focused: Boolean) {
+private fun StandingsCells(row: StandingsRow, sport: Sport?, highlight: Boolean, star: Boolean, focused: Boolean, leagueKey: String?) {
     val on = if (focused) stageAccent.onAccent else null
     Row(
         Modifier.fillMaxWidth()
@@ -81,7 +94,7 @@ private fun StandingsCells(row: StandingsRow, sport: Sport?, highlight: Boolean,
             if (star) Text("★", style = stageText(17, 700), color = on ?: Color(0xFFFFD166), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         val main = StandingsColumn.main(sport)
-        StandingsColumn.of(sport).forEach { c ->
+        tableColumns(sport, leagueKey).forEach { c ->
             val bold = c == main
             Text(c.valueOf(row), style = stageText(19, if (bold) 800 else 500), color = on ?: if (bold) StageColors.Text else StageColors.Body, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.width(NumberColumn))
         }
