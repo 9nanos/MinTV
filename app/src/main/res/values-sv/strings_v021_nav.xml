@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mintv_v021_favorites_row">Favoriter</string>
+    <string name="mintv_v021_history_row">Senast sett</string>
+    <string name="mintv_v021_show_all">Visa alla</string>
+    <string name="mintv_v021_search_movies">Sök film</string>
+    <string name="mintv_v021_search_series">Sök serier</string>
+    <string name="mintv_v021_vod_empty">Här finns inget än. Lägg till en källa med film eller serier, eller sök.</string>
+</resources>

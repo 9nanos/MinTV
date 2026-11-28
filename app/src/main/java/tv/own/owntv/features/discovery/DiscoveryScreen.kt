@@ -75,8 +75,10 @@ internal fun rememberDiscovery(type: MetadataType, visible: Boolean = true, enab
         val ids = if (type == MetadataType.MOVIE) context.movieSourceIds else context.seriesSourceIds
         if (ids.isEmpty()) return@LaunchedEffect
         try {
-            discoveryShelves(db.invalidationTracker.createFlow(if (type == MetadataType.MOVIE) "movies" else "series",
-                "metadata_match", "metadata_cache", "watch_history", "favorites", "playback_progress", "categories").map { Unit }, repository.candidateRevision, refreshes) {
+            discoveryShelves(discoveryInvalidations(
+                db.invalidationTracker.createFlow(if (type == MetadataType.MOVIE) "movies" else "series", "favorites", "categories").map { Unit },
+                db.invalidationTracker.createFlow("metadata_match", "metadata_cache", "watch_history", "playback_progress").map { Unit }),
+                repository.candidateRevision, refreshes) {
                 repository.shelf(context.profileId, ids, type)
             }.collect { shelf = it }
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -199,15 +201,7 @@ internal fun DiscoveryPosterRow(row: DiscoveryRow, type: MetadataType, rankedAt:
     onFocused: (String) -> Unit = {}, targets: MutableMap<String, FocusRequester>? = null, first: Modifier = Modifier,
     onFolder: (ProviderFolder) -> Unit = {}) {
     Column(verticalArrangement = Arrangement.spacedBy(10.mpx)) {
-        TvText(row.folder?.name ?: row.genre ?: stringResource(when (row.kind) {
-            DiscoveryKind.PROVIDER -> R.string.mintv_provider_folder
-            DiscoveryKind.TOP -> if (type == MetadataType.MOVIE) R.string.mintv_top_available_movies else R.string.mintv_top_available_series
-            DiscoveryKind.TRENDING -> R.string.mintv_trending_available
-            DiscoveryKind.RECENT -> R.string.mintv_recently_added_library
-            DiscoveryKind.RATED -> R.string.mintv_high_rated_provider
-            DiscoveryKind.RECOMMENDED -> R.string.mintv_recommended_genres
-            DiscoveryKind.GENRE -> R.string.mintv_genre_collection
-        }), size = 26, bold = true)
+        TvText(discoveryRowTitle(row, type), size = 26, bold = true)
         row.folder?.let { folder ->
             TvText(stringResource(R.string.mintv_provider_folder_source, folder.sourceName), color = MinTvMuted, size = 17)
         }
@@ -237,3 +231,17 @@ internal fun DiscoveryPosterRow(row: DiscoveryRow, type: MetadataType, rankedAt:
         }
     }
 }
+
+/** The heading of a discovery row: the provider folder or genre name, else what the row is. */
+@Composable
+internal fun discoveryRowTitle(row: DiscoveryRow, type: MetadataType): String = row.folder?.name ?: row.genre ?: stringResource(when (row.kind) {
+    DiscoveryKind.FAVORITES -> R.string.mintv_v021_favorites_row
+    DiscoveryKind.HISTORY -> R.string.mintv_v021_history_row
+    DiscoveryKind.PROVIDER -> R.string.mintv_provider_folder
+    DiscoveryKind.TOP -> if (type == MetadataType.MOVIE) R.string.mintv_top_available_movies else R.string.mintv_top_available_series
+    DiscoveryKind.TRENDING -> R.string.mintv_trending_available
+    DiscoveryKind.RECENT -> R.string.mintv_recently_added_library
+    DiscoveryKind.RATED -> R.string.mintv_high_rated_provider
+    DiscoveryKind.RECOMMENDED -> R.string.mintv_recommended_genres
+    DiscoveryKind.GENRE -> R.string.mintv_genre_collection
+})

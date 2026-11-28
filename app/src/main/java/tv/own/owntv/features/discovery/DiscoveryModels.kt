@@ -10,7 +10,7 @@ internal data class DiscoveryCard(val id: Long, val sourceId: Long, val stableKe
     val genres: Set<String>, val tmdbId: Int?, val completed: Boolean = false,
     val categoryId: Long? = null, val providerOrder: Int = 0, val variants: List<DiscoveryCard> = emptyList(),
     val folderKey: String? = null)
-internal enum class DiscoveryKind { PROVIDER, TOP, TRENDING, RECENT, RATED, RECOMMENDED, GENRE }
+internal enum class DiscoveryKind { FAVORITES, HISTORY, PROVIDER, TOP, TRENDING, RECENT, RATED, RECOMMENDED, GENRE }
 internal data class DiscoveryRow(val kind: DiscoveryKind, val cards: List<DiscoveryCard>, val genre: String? = null,
     val folder: ProviderFolder? = null) {
     val key: String get() = folder?.let { "provider:${it.stableKey}" } ?: "$kind:$genre"

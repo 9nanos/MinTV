@@ -51,6 +51,10 @@ class ProductionStartupTest {
         }
     }
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
+    private val vodContentFocused = androidx.compose.ui.test.SemanticsMatcher("focused Film/Serier content") {
+        it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("vod-") == true &&
+            it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Focused) == true
+    }
     private val app get() = instrumentation.targetContext
     private val db get() = GlobalContext.get().get<OwnTVDatabase>()
     private val settings get() = GlobalContext.get().get<SettingsRepository>()
@@ -571,38 +575,35 @@ class ProductionStartupTest {
                 press(KeyEvent.KEYCODE_DPAD_UP)
                 compose.onNodeWithTag("top-SPORT").assertIsFocused()
                 nativeCapture("sport")
-                compose.onNodeWithTag("top-VOD").performClick()
-                compose.onNodeWithTag("sub-MOVIES").assertExists()
-                compose.onNodeWithTag("sub-SERIES").performClick()
-                compose.onNodeWithTag("sub-SERIES").assertIsSelected()
+                // Min TV 0.21: Film and Serier are top tabs of their own; no Film/Serier sub-navigation.
+                compose.onNodeWithTag("top-MOVIES").performClick()
+                compose.onNodeWithTag("sub-MOVIES").assertDoesNotExist()
+                compose.onNodeWithTag("top-SERIES").performClick()
+                compose.onNodeWithTag("top-SERIES").assertIsSelected()
+                compose.onNodeWithTag("sub-SERIES").assertDoesNotExist()
                 compose.onNodeWithTag("top-HOME").performClick()
                 compose.onNodeWithTag("top-HOME").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus)
                 compose.waitForIdle()
                 compose.onNodeWithTag("top-HOME").assertIsFocused()
-                for (destination in listOf("TV", "SPORT", "VOD")) {
+                for (destination in listOf("TV", "SPORT", "MOVIES", "SERIES")) {
                     press(KeyEvent.KEYCODE_DPAD_RIGHT)
                     compose.onNodeWithTag("top-$destination").assertIsFocused()
                     compose.onNodeWithTag("top-HOME").assertIsSelected()
                 }
-                compose.onNodeWithTag("top-VOD").assertIsFocused()
-                compose.onNodeWithTag("top-HOME").assertIsSelected()
                 press(KeyEvent.KEYCODE_DPAD_DOWN)
                 compose.waitForIdle()
-                compose.onNodeWithTag("sub-SERIES").assertIsSelected()
-                compose.onNodeWithTag("top-VOD").assertIsNotFocused()
-                compose.onNodeWithTag("sub-SERIES").assertIsFocused()
-                assertNavigationLevels(contextual = true)
+                compose.onNodeWithTag("top-SERIES").assertIsSelected()
+                compose.onNodeWithTag("top-SERIES").assertIsNotFocused()
+                // ▼ enters the tab's own rows directly (a title, Continue watching, or Search when empty).
+                compose.waitUntil(5_000) { compose.onAllNodes(vodContentFocused).fetchSemanticsNodes().size == 1 }
+                assertNavigationLevels(contextual = false)
                 nativeCapture("series")
                 press(KeyEvent.KEYCODE_DPAD_UP)
-                compose.onNodeWithTag("top-VOD").assertIsFocused()
+                compose.onNodeWithTag("top-SERIES").assertIsFocused()
                 press(KeyEvent.KEYCODE_DPAD_DOWN)
-                compose.onNodeWithTag("sub-SERIES").assertIsFocused()
-                press(KeyEvent.KEYCODE_DPAD_DOWN)
-                compose.onNodeWithTag("sub-SERIES").assertIsNotFocused()
+                compose.waitUntil(5_000) { compose.onAllNodes(vodContentFocused).fetchSemanticsNodes().size == 1 }
                 press(KeyEvent.KEYCODE_BACK)
-                compose.onNodeWithTag("sub-SERIES").assertIsFocused()
-                press(KeyEvent.KEYCODE_BACK)
-                compose.onNodeWithTag("top-VOD").assertIsFocused()
+                compose.onNodeWithTag("top-SERIES").assertIsFocused()
                 compose.onNodeWithTag("top-PROFILE").performClick()
                 compose.onNodeWithTag("sub-MORE").assertDoesNotExist()
                 compose.onNodeWithTag("settings-group-PROFILE").assertIsDisplayed()

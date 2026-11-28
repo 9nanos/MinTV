@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mintv_v021_favorites_row">Favorites</string>
+    <string name="mintv_v021_history_row">Recently watched</string>
+    <string name="mintv_v021_show_all">Show all</string>
+    <string name="mintv_v021_search_movies">Search movies</string>
+    <string name="mintv_v021_search_series">Search series</string>
+    <string name="mintv_v021_vod_empty">Nothing here yet. Add a source with movies or series, or search.</string>
+</resources>

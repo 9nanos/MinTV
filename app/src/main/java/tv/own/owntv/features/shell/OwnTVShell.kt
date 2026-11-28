@@ -148,12 +148,10 @@ fun OwnTVShell(
 ) {
     var presentation by rememberSaveable(activeProfileId) { mutableStateOf<TopDestination?>(null) }
     var lastTv by rememberSaveable(activeProfileId) { mutableStateOf(MainSection.LIVE_TV) }
-    var lastVod by rememberSaveable(activeProfileId) { mutableStateOf(MainSection.MOVIES) }
     var searchParent by rememberSaveable(activeProfileId) { mutableStateOf(TopDestination.TV) }
     val primary = presentation ?: if (selectedSection == MainSection.SEARCH) searchParent else topDestination(selectedSection)
     val onSelectSection: (MainSection) -> Unit = { section ->
         if (section == MainSection.SEARCH && selectedSection != MainSection.SEARCH) searchParent = primary
-        if (section == MainSection.MOVIES || section == MainSection.SERIES) lastVod = section
         if (section == MainSection.LIVE_TV || section == MainSection.EPG) lastTv = section
         presentation = null
         onSelectLegacySection(section)
@@ -165,7 +163,6 @@ fun OwnTVShell(
 
     val scope = rememberCoroutineScope()
     val sidebarFocus = remember(activeProfileId) { FocusRequester() }
-    val nativeSubFocus = remember(activeProfileId) { FocusRequester() }
     // When focus was last sent to the rail on purpose: ◀ / ▶ from the content, or the app itself
     // ([focusRail]). A rail visit that follows neither does not open the floating rail (#7.1).
     var railKeyAt by remember { mutableLongStateOf(0L) }
@@ -880,7 +877,6 @@ fun OwnTVShell(
             showExit -> showExit = false
             // Reached from a Search result: Back returns to Search once, its query, tab and row kept.
             searchReturn == selectedSection && focusedLayer != ShellLayer.SIDEBAR -> returnToSearch()
-            primary == TopDestination.VOD && focusedLayer == ShellLayer.CONTENT -> runCatching { nativeSubFocus.requestFocus() }
             nativeBack(focusedLayer == ShellLayer.SIDEBAR, primary) == NativeBack.HOME -> {
                 onSelectSection(MainSection.HOME)
                 scope.launch { withFrameNanos { }; sidebarFocus.requestFocus() }
@@ -1093,7 +1089,7 @@ fun OwnTVShell(
           var nativeEntryRequest by remember(activeProfileId) { mutableStateOf(0) }
           val activateNative: (TopDestination) -> Unit = { destination ->
               restoreFocus = false // A new header selection must not inherit a previous page's entry request.
-              val target = nativeEntry(destination, nativeVisible, lastVod, lastTv)
+              val target = nativeEntry(destination, nativeVisible, lastTv)
               selectFromNav(target ?: MainSection.MORE)
               presentation = destination.takeIf { it == TopDestination.SPORT || target == null }
           }
@@ -1101,7 +1097,6 @@ fun OwnTVShell(
               when (selectedSection) {
                   MainSection.LIVE_TV -> tvCategoryEntry?.invoke() == true || tryEnterNativeContent()
                   MainSection.SETTINGS -> settingsCategoryEntry?.invoke() ?: tryEnterNativeContent()
-                  MainSection.MOVIES, MainSection.SERIES -> runCatching { nativeSubFocus.requestFocus() }.getOrDefault(false)
                   else -> tryEnterNativeContent()
               }
           }, { restoreFocus = false; runCatching { sidebarFocus.requestFocus() } }, { nativeEntryRequest = 0 })
@@ -1109,7 +1104,7 @@ fun OwnTVShell(
           NativeTopNavigation(primary, sidebarFocus, { destination ->
               nativeEntryRequest = 0
               activateNative(destination)
-              if (destination in listOf(TopDestination.TV, TopDestination.VOD, TopDestination.PROFILE)) nativeEntryRequest++
+              if (destination in listOf(TopDestination.TV, TopDestination.MOVIES, TopDestination.SERIES, TopDestination.PROFILE)) nativeEntryRequest++
           }, { destination ->
               activateNative(destination)
               nativeEntryRequest++
@@ -1118,12 +1113,6 @@ fun OwnTVShell(
                   { selectFromNav(MainSection.SEARCH) },
                   enterNowPlaying.takeIf { playerMode == PlayerMode.MINI || playerMode == PlayerMode.AUDIO })
           }, onEnterUtilityContent = { nativeEntryRequest++ })
-          if (primary == TopDestination.VOD) {
-              NativeSubNavigation(nativeRoutes(primary, nativeVisible), selectedSection, { selectFromNav(it) },
-                  { runCatching { sidebarFocus.requestFocus() } }, enterNativeContent,
-                  { focusedLayer = ShellLayer.RAIL },
-                  entryFocusRequester = nativeSubFocus)
-          }
           // Screens already redrawn for Stage own the whole canvas.
           val stageScreen = selectedSection in StageSections
           Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -1162,13 +1151,13 @@ fun OwnTVShell(
                                     start = 0.dp,
                                     top = if (stageScreen) 0.dp else tv.own.owntv.features.shell.components.StageContentTop,
                                 )
-                                .nativeContentNavigation(if (primary == TopDestination.VOD) nativeSubFocus else sidebarFocus, contentFocusManager)
+                                .nativeContentNavigation(sidebarFocus, contentFocusManager)
                                 .focusRequester(contentAreaFocus)
                                 .focusRestorer()
                                 .focusGroup(),
                         ),
                 ) {
-                    pageStateHolder.SaveableStateProvider(if (selectedSection in listOf(MainSection.MOVIES, MainSection.SERIES) && searchReturn == null) "$activeProfileId:v011-vod" else nativePageKey(activeProfileId, selectedSection, presentation)) {
+                    pageStateHolder.SaveableStateProvider(nativePageKey(activeProfileId, selectedSection, presentation)) {
                     when {
                         presentation == TopDestination.SPORT -> tv.own.owntv.features.home.NativeSportScreen(
                             liveVm, homeVm, activeProfileId, playerMode == PlayerMode.NONE,
@@ -1364,8 +1353,8 @@ fun OwnTVShell(
                         selectedSection in listOf(MainSection.MOVIES, MainSection.SERIES) && searchReturn == null ->
                             tv.own.owntv.features.home.NativeVodHost(activeProfileId, selectedSection, playerMode == PlayerMode.NONE,
                                 movieVm, seriesVm, { onSelectSection(it) }, { openFullscreen(it) },
-                                { focusedLayer = ShellLayer.CONTENT }, { runCatching { nativeSubFocus.requestFocus() } },
-                                { vodEntry = it }, Modifier.fillMaxSize())
+                                { focusedLayer = ShellLayer.CONTENT }, { runCatching { sidebarFocus.requestFocus() } },
+                                { vodEntry = it }, { selectFromNav(MainSection.SEARCH) }, Modifier.fillMaxSize())
 
                         selectedSection == MainSection.MOVIES -> MoviesScreen(
                             onFullscreen = { openFullscreen() },

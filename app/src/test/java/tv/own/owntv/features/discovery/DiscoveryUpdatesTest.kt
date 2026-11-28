@@ -136,4 +136,24 @@ class DiscoveryUpdatesTest {
         advanceTimeBy(1000); runCurrent()
         assertEquals(3, reads)
     }
+
+    @Test fun backgroundWritesCoalesceWhileCatalogueChangesStayPrompt() = runTest {
+        val structural = MutableSharedFlow<Unit>()
+        val volatile = MutableSharedFlow<Unit>()
+        var reads = 0
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            discoveryShelves(discoveryInvalidations(structural.onStart { emit(Unit) }, volatile.onStart { emit(Unit) }),
+                MutableStateFlow(0L), MutableStateFlow(false)) { reads++; DiscoveryShelf() }.collect()
+        }
+        runCurrent()
+        assertEquals(1, reads) // Room's initial emission from both tables is one read, not two.
+        // The player saves progress every few seconds; a TMDB match lands per focused title.
+        repeat(10) { volatile.emit(Unit); advanceTimeBy(5_000); runCurrent() }
+        assertEquals(1, reads)
+        advanceTimeBy(30_000); runCurrent()
+        assertEquals(2, reads)
+        structural.emit(Unit) // A favourite added or a catalogue sync: shown after the short debounce.
+        advanceTimeBy(750); runCurrent()
+        assertEquals(3, reads)
+    }
 }

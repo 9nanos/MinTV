@@ -19,8 +19,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import tv.own.owntv.R
-import tv.own.owntv.core.nav.MainSection
-import tv.own.owntv.ui.stage.StagePill
 import tv.own.owntv.ui.stage.StageSurface
 import tv.own.owntv.ui.stage.StageFocus
 import tv.own.owntv.ui.theme.*
@@ -43,7 +41,8 @@ internal fun NativeTopNavigation(
     androidx.activity.compose.BackHandler(enabled = utilityFocused) { selectedFocus.requestFocus() }
     val labels = mapOf(TopDestination.HOME to R.string.mintv_nav_home,
         TopDestination.TV to R.string.mintv_nav_tv, TopDestination.SPORT to R.string.mintv_nav_sport,
-        TopDestination.VOD to R.string.mintv_nav_vod, TopDestination.PROFILE to R.string.mintv_nav_profile)
+        TopDestination.MOVIES to R.string.common_nav_movies, TopDestination.SERIES to R.string.common_nav_series,
+        TopDestination.PROFILE to R.string.mintv_nav_profile)
     BoxWithConstraints(modifier.testTag("navigation-global").fillMaxWidth().height(88.mpx * maxOf(1f, LocalDensity.current.fontScale)).background(OwnTVTheme.colors.background)) {
         val brand = maxWidth > 850.dp
         Row(Modifier.fillMaxSize().padding(horizontal = 32.mpx, vertical = 16.mpx)
@@ -91,32 +90,5 @@ private fun NativeTopItem(destination: TopDestination, label: String, active: To
         }
         Box(Modifier.height(3.mpx).fillMaxWidth()
             .background(if (active == destination) stageAccent.accent else androidx.compose.ui.graphics.Color.Transparent))
-    }
-}
-
-/** Aliases to existing screen owners; OK-only activation and no new preference store. */
-@Composable
-internal fun NativeSubNavigation(routes: List<MainSection>, selected: MainSection,
-    onSelect: (MainSection) -> Unit, onHeader: () -> Unit,
-    onEnterContent: () -> Unit, onFocused: () -> Unit, modifier: Modifier = Modifier, entryFocusRequester: FocusRequester) {
-    val targets = remember(routes) { routes.associateWith { FocusRequester() } }
-    Row(modifier.testTag("navigation-context").fillMaxWidth().height(64.mpx).padding(horizontal = 40.mpx)
-        .horizontalScroll(rememberScrollState()).onFocusChanged { if (it.hasFocus) onFocused() }
-        .onPreviewKeyEvent { event ->
-            when(event.key) {
-                Key.DirectionUp -> { if (event.type == KeyEventType.KeyDown) onHeader(); true }
-                Key.DirectionDown -> { if (event.type == KeyEventType.KeyDown) onEnterContent(); true }
-                else -> false
-            }
-        }.focusGroup(), horizontalArrangement = Arrangement.spacedBy(14.mpx), verticalAlignment = Alignment.CenterVertically) {
-        routes.forEach { route ->
-            StagePill(stringResource(when (route) {
-                MainSection.LIVE_TV -> R.string.mintv_swedish_channels
-                MainSection.MORE -> R.string.mintv_nav_library
-                else -> route.labelRes
-            }), { onSelect(route) },
-                Modifier.focusRequester(if (route == (selected.takeIf { it in routes } ?: routes.firstOrNull())) entryFocusRequester else targets.getValue(route)).testTag("sub-${route.name}").semantics { this.selected = route == selected },
-                dimmed = route != selected)
-        }
     }
 }
