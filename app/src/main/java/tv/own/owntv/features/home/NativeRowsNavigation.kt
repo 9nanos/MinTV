@@ -70,14 +70,18 @@ internal fun rememberNativeRowsNavigation(rows: List<NativeRow>, profile: Long?,
             }
             // Lazy items created by scroll still need a layout frame before focus is safe.
             if (scrolled) repeat(2) { withFrameNanos { } }
-            if (currentRows.none { target in it.keys }) return@launch
-            if (targets[target]?.requestSafely() != true) {
+            // A row that changes its cards while loading (the Sport hero: "Choose channel" becomes
+            // "Watch match") must not drop the press: aim at the same row and column as it is now.
+            fun current(): String? = if (currentRows.any { target in it.keys }) target
+                else currentRows.firstOrNull { it.id == targetRow.id }?.keys?.let { keys -> keys.getOrNull(col.coerceIn(0, (keys.size - 1).coerceAtLeast(0))) }
+            if (current() == null) return@launch
+            if (current()?.let { targets[it] }?.requestSafely() != true) {
                 // A briefly detached target must not drop a remote press or steal focus
                 // from a newer movement; cancellation of this Job aborts these retries.
                 repeat(3) {
                     withFrameNanos { }
-                    if (currentRows.none { target in it.keys }) return@launch
-                    if (targets[target]?.requestSafely() == true) return@launch
+                    val now = current() ?: return@launch
+                    if (targets[now]?.requestSafely() == true) return@launch
                 }
             }
         }

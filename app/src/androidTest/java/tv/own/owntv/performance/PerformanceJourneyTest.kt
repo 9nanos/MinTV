@@ -373,8 +373,11 @@ class PerformanceJourneyTest {
                         press(KeyEvent.KEYCODE_DPAD_DOWN)
                         try { compose.waitUntil(5_000) { focusedSport("sport-hero") } } catch (error: Throwable) {
                             val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
-                            throw AssertionError("Hero not focused after Down\nFOCUSED: $focused\nTREE:\n" +
-                                runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 12) }.getOrDefault("").take(12_000), error)
+                            val tags = runCatching { compose.onAllNodes(SemanticsMatcher("sport tag") {
+                                it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                                    it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") })
+                                .fetchSemanticsNodes().map { it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag] } }.getOrDefault(emptyList())
+                            throw AssertionError("Hero not focused after Down\nSPORT TAGS: $tags\nFOCUSED: $focused", error)
                         }
                     }
                     repeat(4) {
