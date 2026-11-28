@@ -22,3 +22,11 @@
 #     EpgAutoRefresh, PlaylistAutoRefresh, ...) round-trip through Enum.name/valueOf.
 #     Renaming a constant would silently reset settings and break old backups. ---
 -keep enum tv.own.owntv.** { *; }
+
+# --- R8 optimization off (Min TV 0.21 hotfix) ---
+#     0.21.0-beta.1 crashed at startup on an Android 14 TV with
+#     java.lang.VerifyError: "copy1 v2<-v183 type=Precise Reference" in a very large inlined
+#     @Composable: R8's optimizer emitted a non-object move of a reference, which ART rejects.
+#     Shrinking and obfuscation stay on; only the optimizer (inlining etc.) is disabled.
+#     Remove once the R8/AGP bug is fixed and a release build verifies on device again.
+-dontoptimize
