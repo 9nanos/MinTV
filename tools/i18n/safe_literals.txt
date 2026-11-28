@@ -2173,6 +2173,13 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsTeamScreen.kt	• – •
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsTeamScreen.kt	⌂
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsViewModel.kt	$startMs|$title
+2	empty	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	\0
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	$it
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	+$it
+1	log	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	No Swedish hockey schedule for ${competition.id}
+1	log	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	No Swedish hockey table for ${competition.id}
+1	protocol	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	swe.allsvenskan
+1	protocol	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	swe.shl
 2	empty	app/src/main/java/tv/own/owntv/features/subtitles/FolderSubtitleViewModel.kt	\0
 1	json	app/src/main/java/tv/own/owntv/features/subtitles/SubtitleSearchViewModel.kt	ai_translated
 1	json	app/src/main/java/tv/own/owntv/features/subtitles/SubtitleSearchViewModel.kt	attributes

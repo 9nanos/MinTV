@@ -100,14 +100,22 @@ internal class SportsPreferences(context: Context, private val profiles: tv.own.
 }
 
 /** Keeps competition discovery/provider DTOs outside the generic UI model. */
-internal class SportsRepository(private val hockey: ShlRepository) {
-    suspend fun cached(competition: Competition): SportSnapshot? = if (!competition.scheduleAvailable) null
+/** The Swedish hockey reads the upstream Sports section's source needs (kept small so it can be tested). */
+internal interface SwedishHockeyData {
+    suspend fun cached(competition: Competition): SportSnapshot?
+    suspend fun refresh(competition: Competition, now: Long): SportSnapshot?
+    suspend fun standings(competition: Competition, season: String, now: Long): HockeyTable?
+    suspend fun cachedStandings(competition: Competition, season: String): HockeyTable?
+}
+
+internal class SportsRepository(private val hockey: ShlRepository) : SwedishHockeyData {
+    override suspend fun cached(competition: Competition): SportSnapshot? = if (!competition.scheduleAvailable) null
         else hockey.cached(competition).let { it?.sportSnapshot(competition) }
-    suspend fun refresh(competition: Competition, now: Long): SportSnapshot? = if (!competition.scheduleAvailable) null
+    override suspend fun refresh(competition: Competition, now: Long): SportSnapshot? = if (!competition.scheduleAvailable) null
         else hockey.refresh(now, competition).sportSnapshot(competition)
-    suspend fun standings(competition: Competition, season: String, now: Long): HockeyTable? =
+    override suspend fun standings(competition: Competition, season: String, now: Long): HockeyTable? =
         if (competition.scheduleAvailable) hockey.standings(season, now, competition) else null
-    suspend fun cachedStandings(competition: Competition, season: String): HockeyTable? =
+    override suspend fun cachedStandings(competition: Competition, season: String): HockeyTable? =
         if (competition.scheduleAvailable) hockey.cachedStandings(competition, season) else null
     private fun ShlSnapshot.sportSnapshot(competition: Competition) = SportSnapshot(competition, seasonId,
         games.map { SportsCatalog.fixture(competition, it) }, fetchedAt, sourceUpdatedAt)

@@ -71,6 +71,18 @@ consent. Next step: bring SHL/HA into the upstream engine so the hub can be reti
 - `ProductionStartupTest`: Sport → Explore → Resultat & kalender opens the section with the Sport tab still
   selected, Back returns focus to the tile. App unit tests for shell/home/sports pass locally (283).
 
+## M2 step 2 — SHL and HockeyAllsvenskan in the upstream engine
+
+- Core (`core/feat/swedish-hockey`, pinned): `SportsCatalog` lists `hockey/swe.shl` and
+  `hockey/swe.allsvenskan`.
+- App: `SwedishHockeySource` is the upstream section's `SportsSource`. It answers those two leagues
+  from Min TV's existing Swedish hockey reader (same opt-in, cache, robots and back-off; refresh only
+  when the stored season is older than 30 min, else the stored copy) and passes every other league to
+  ESPN. Results are final; a game without a result is never shown live from its start time alone.
+- Tests: `SwedishHockeySourceTest` (day, month, team schedule, table, staleness, ESPN pass-through).
+- Next: once the upstream pages are checked on device with SHL followed, retire the hub's own SHL
+  pages so Sport has a single engine.
+
 ### Not done yet (M2–M4)
 Unified hub/calendar/My teams, sport filters, ranked Watch Match fallback, performance before/after on
 the 12k synthetic library, 720p/1080p screenshots review, Swedish release notes for a QA proposal.
