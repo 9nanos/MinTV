@@ -583,7 +583,12 @@ class NativeV011PresentationTest {
         assertEquals(1, played); assertEquals(0, manualChoices); assertEquals(0, details)
         press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("sport-live-101").assertIsFocused()
         // The visible escape hatch to every sports channel ends the rail; it never opens a match picker.
-        compose.onNodeWithTag("sport-live-all").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus)
+        // Reach it with the remote: the lazy rail composes it only once scrolled into view.
+        repeat(20) {
+            if (compose.onAllNodesWithTag("sport-live-all").fetchSemanticsNodes().isNotEmpty() &&
+                runCatching { compose.onNodeWithTag("sport-live-all").assertIsFocused(); true }.getOrDefault(false)) return@repeat
+            press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        }
         compose.waitForIdle(); compose.onNodeWithTag("sport-live-all").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertEquals(1, allSportChannels); assertEquals(0, manualChoices); assertEquals(1, played)
