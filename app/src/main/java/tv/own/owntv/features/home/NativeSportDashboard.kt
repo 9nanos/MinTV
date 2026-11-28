@@ -7,6 +7,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -43,19 +49,24 @@ internal data class NativeSportSnapshot(val profile: Long?, val now: Long, val p
     val heroChannel: ChannelEntity? = null, val loading: Boolean = false, val enabled: Boolean = true, val issue: HockeyIssue? = null,
     val playableFixtures: Map<String, ChannelEntity> = emptyMap(), val publicSourceUsed: Boolean = false,
     val channelsLoading: Boolean = false,
-    val broadcastAvailability: Map<String, HockeyChannelAvailability> = emptyMap())
+    val broadcastAvailability: Map<String, HockeyChannelAvailability> = emptyMap(),
+    /** Stored Now/Next for [channels], from the bounded Home guide owner; empty means honestly unknown. */
+    val channelGuide: Map<tv.own.owntv.features.live.SwedishRowKey, tv.own.owntv.features.live.SwedishRowInfo> = emptyMap(),
+    val guideAt: Long = now)
 internal class NativeSportActions(val details: (SportFixture) -> Unit, val channel: (ChannelEntity) -> Unit,
     val browse: () -> Unit, val watch: () -> Unit, val settings: () -> Unit,
     val fixtureWatch: ((SportFixture, ChannelEntity) -> Unit)? = null,
     val chooseChannel: ((SportFixture) -> Unit)? = null,
-    val teams: () -> Unit = settings)
+    val teams: () -> Unit = settings,
+    /** Plain, fixture-free channel browsing: a picked channel never becomes a match claim. */
+    val allChannels: () -> Unit = browse)
 
 /** Presentation only; every fixture, result and playable assignment comes from existing owners. */
 @Composable
 internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSportActions, first: FocusRequester,
     onEntry: ((() -> Boolean)?) -> Unit, onHeader: () -> Unit, modifier: Modifier = Modifier, onExplore: (() -> Unit)? = null,
     hubReads: Map<String,HubRead> = emptyMap(), onHubTeam: ((HubFollow) -> Unit)? = null, onHubMatch: ((HubMatch) -> Unit)? = null,
-    onHubMine: (() -> Unit)? = null) {
+    onHubMine: (() -> Unit)? = null, onLiveEntry: ((() -> Boolean)?) -> Unit = {}) {
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     // The featured scheduled fixture already has its own primary/detail actions.
     val featured = data.hero?.takeIf { it.status == MatchStatus.SCHEDULED }?.id
@@ -69,7 +80,18 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
     val mineItems = sportRailItems(mine.take(12),railExtra)
     val today = groups.today
     val upcoming = groups.upcoming
+    // Sport is for watching first: real local sports channels lead, independent of any match data.
+    // A background channel reload (guide refresh, source sync) must not blank the row the remote is
+    // on: keep the last loaded list until the reload finishes, so focus never falls off a removed card.
+    // The last loaded list also survives leaving Sport (in memory, per profile), so a revisit shows the
+    // row at once instead of after the reload, and header entry can land on it.
+    val loadedLive = remember(data.profile) { mutableStateOf(SportLiveRowMemory.get(data.profile)) }
+    LaunchedEffect(data.profile, data.channels, data.channelsLoading) {
+        if (!data.channelsLoading) { loadedLive.value = data.channels; SportLiveRowMemory.put(data.profile, data.channels) }
+    }
+    val live = if (data.channelsLoading) loadedLive.value else data.channels
     val rows = buildList {
+        if (live.isNotEmpty()) add(NativeRow("sport-live", live.map { "sport-live-${it.id}" } + "sport-live-all"))
         add(NativeRow("sport-hero", (if (personalHero) listOf("sport-hero-action") + if (publicHero != null) listOf("sport-hero-teams") else emptyList()
             else if (data.hero != null) listOf("sport-hero-action", "sport-hero-details", "sport-hero-teams")
             else listOf("sport-empty-action", "sport-hero-teams")) + if (onExplore != null) listOf("sport-hero-explore") else emptyList(), horizontalRail = false))
@@ -78,16 +100,45 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
         if (today.isNotEmpty()) add(NativeRow("sport-today", today.take(16).map { "sport-today-${it.id}" }))
         if (upcoming.isNotEmpty()) add(NativeRow("sport-upcoming", upcoming.take(12).map { "sport-upcoming-${it.id}" }))
         if (data.publicSourceUsed) add(NativeRow("sport-attribution", listOf("sport-attribution-link"), horizontalRail = false))
-        if (data.channels.isNotEmpty()) add(NativeRow("sport-channels", data.channels.take(48).map { "sport-channel-${it.id}" }))
     }
+    // v0.20: header entry (only) lands on the first live sports channel; returns restore exactly.
+    val hasLive = live.isNotEmpty()
+    val currentHasLive by rememberUpdatedState(hasLive)
     val nav = rememberNativeRowsNavigation(rows, data.profile, first, onEntry, onHeader)
+    val currentNav by rememberUpdatedState(nav)
+    DisposableEffect(onLiveEntry) {
+        onLiveEntry { currentHasLive && currentNav.enterFirst() }
+        onDispose { onLiveEntry(null) }
+    }
     BoxWithConstraints(modifier.fillMaxSize().background(DesignLabBackground)) {
         val width = (maxWidth - 128.mpx - 54.mpx) / 4
         LazyColumn(state = nav.list, contentPadding = PaddingValues(horizontal = 64.mpx, vertical = 28.mpx),
             verticalArrangement = Arrangement.spacedBy(24.mpx), modifier = Modifier.fillMaxSize().then(nav.modifier).focusGroup()) {
+            if (live.isNotEmpty()) item(key = "sport-live") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.mpx)) {
+                    TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.mpx), verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                        TvText(stringResource(R.string.v020_sport_live_title), size = 27, bold = true, lines = 1)
+                        TvText(stringResource(R.string.v020_sport_live_hint), size = 18, color = MinTvMuted, lines = 1)
+                    }
+                    LazyRow(state = nav.rails.getValue("sport-live"), horizontalArrangement = Arrangement.spacedBy(18.mpx), contentPadding = PaddingValues(5.mpx)) {
+                        items(live, key = { it.id }) { channel ->
+                            val info = data.channelGuide[channel.homeEpgKey()]
+                            HomeNowChannelCard(channel.name, info?.logo ?: channel.displayLogoUrl, null, info, data.guideAt,
+                                { actions.channel(channel) }, nav.item("sport-live-${channel.id}").width(width).testTag("sport-live-${channel.id}"))
+                        }
+                        item(key = "sport-live-all") {
+                            HomeSurface(actions.allChannels, nav.item("sport-live-all").width(width).heightIn(min = 186.mpx).testTag("sport-live-all")) {
+                                TvText(stringResource(R.string.v020_sport_all_channels), size = 24, bold = true, lines = 2)
+                                TvText(stringResource(R.string.v020_sport_all_channels_detail), size = 18, color = MinTvMuted, lines = 2)
+                            }
+                        }
+                    }
+                }
+            }
             item(key = "sport-hero") {
                 Column(verticalArrangement = Arrangement.spacedBy(16.mpx)) {
-                    TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)
+                    if (live.isEmpty()) TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)
                     if (personalHero) NativePublicSportHero(publicHero,followed,data.preferences,data.now,nav,onHubMatch,onHubMine,onExplore)
                     else
                     Row(Modifier.fillMaxWidth().heightIn(min = if (data.hero != null) 268.mpx else 120.mpx).clip(RoundedCornerShape(20.mpx)).neutralArtwork().padding(26.mpx),
@@ -169,25 +220,6 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
                 HomeButton(stringResource(R.string.mintv_public_hockey_source),
                     { runCatching { uri.openUri("https://tvprogramidag.se") } }, nav.item("sport-attribution-link"))
             }
-            if (data.channels.isNotEmpty()) item(key = "sport-channels") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.mpx)) {
-                    TvText(stringResource(R.string.mintv_v011_hockey_channels), size = 27, bold = true)
-                    LazyRow(state = nav.rails.getValue("sport-channels"), horizontalArrangement = Arrangement.spacedBy(18.mpx), contentPadding = PaddingValues(5.mpx)) {
-                        items(data.channels.take(48), key = { it.id }) { channel ->
-                            HomeSurface({ actions.channel(channel) }, nav.item("sport-channel-${channel.id}").width(width)
-                                .testTag("sport-channel-${channel.id}")) {
-                                Column(Modifier.fillMaxWidth().heightIn(min = 120.mpx).padding(8.mpx),
-                                    verticalArrangement = Arrangement.spacedBy(14.mpx, androidx.compose.ui.Alignment.CenterVertically)) {
-                                    channel.displayLogoUrl?.let { logo -> tv.own.owntv.ui.components.ChannelLogoTile(logo,
-                                        Modifier.height(42.mpx).fillMaxWidth(.5f), fill = Color.Transparent) { } }
-                                    TvText(channel.name, size = 24, bold = true, lines = 2)
-                                    TvText(stringResource(R.string.v016_channel_play_hint), size = 18, color = MinTvTeal, lines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -228,4 +260,13 @@ private fun SportFixtureRail(label: String, fixtures: List<SportFixture>, id: St
             }
         }
     }
+}
+
+/** The last loaded live sports channels per profile, for an instant row on a revisit. In memory only. */
+internal object SportLiveRowMemory {
+    private val lists = java.util.concurrent.ConcurrentHashMap<Long, List<ChannelEntity>>()
+    fun get(profile: Long?): List<ChannelEntity> = profile?.let { lists[it] }.orEmpty()
+    fun put(profile: Long?, channels: List<ChannelEntity>) { if (profile != null) lists[profile] = channels }
+    /** Tests that reuse profile IDs start from nothing. */
+    fun clear() = lists.clear()
 }

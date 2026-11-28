@@ -55,7 +55,7 @@ internal object SportsCatalog {
         "HV 71" to listOf("hv", "hv71"), "BIK Karlskoga" to listOf("karlskoga", "bik"),
         "Leksands IF" to listOf("leksand", "leksands", "lif"), "MoDo Hockey" to listOf("modo"),
     )
-    private fun make(name: String, sport: Sport): Team {
+    internal fun make(name: String, sport: Sport): Team {
         val key = if (sport == Sport.ICE_HOCKEY) ShlTeams.identity(name) ?: aliases[name]?.first()
             else null
         return Team((if (sport == Sport.ICE_HOCKEY) "hockey:" else "football:") +

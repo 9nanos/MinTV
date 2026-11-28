@@ -11,6 +11,8 @@
     <string name="hub_league_premier">Premier League</string>
     <string name="hub_league_allsvenskan">Allsvenskan</string>
     <string name="hub_league_international">International ice hockey</string>
+    <string name="mintv_hockey_final">Final</string>
+    <string name="mintv_sport_scores">Scores &amp; calendar</string>
     <string name="hub_explore">Explore sport</string>
     <string name="hub_back">Back</string>
     <string name="hub_discover">Leagues &amp; sports</string>

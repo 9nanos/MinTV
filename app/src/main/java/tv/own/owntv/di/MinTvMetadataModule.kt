@@ -1,5 +1,6 @@
 package tv.own.owntv.di
 
+import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import tv.own.owntv.core.metadata.MetadataProvider
 import tv.own.owntv.core.metadata.TmdbProvider
@@ -15,4 +16,12 @@ val minTvMetadataModule = module {
     single<MetadataProvider> { BoundedTrendingProvider(ConservativeMetadataProvider(TmdbProvider(
         HttpClient(get<OkHttpClient>().newBuilder().callTimeout(15, TimeUnit.SECONDS)
             .addInterceptor(MetadataResponseLimit()).build()), get(), get(), get()))) }
+    // 0.20 one Sport: the upstream Sports section reads SHL and HockeyAllsvenskan from Min TV's Swedish
+    // hockey reader; ESPN keeps every other league. Overrides Core's ESPN-only binding (loaded first).
+    single<tv.own.owntv.core.sports.SportsSource> {
+        tv.own.owntv.features.sports.SwedishHockeySource(tv.own.owntv.core.sports.EspnSportsSource(get()),
+            get<tv.own.owntv.features.home.SportsRepository>(),
+            androidContext().getString(tv.own.owntv.R.string.mintv_hockey_final),
+            { home, away -> androidContext().getString(tv.own.owntv.R.string.hub_pair, home, away) })
+    }
 }

@@ -393,14 +393,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.LeaguePage(
         when (pane) {
             LeaguePane.TABLE -> {
                 LazyColumn(left.focusRestorer().focusGroup(), contentPadding = PaddingValues(bottom = 24.mpx)) {
-                    item { StandingsHeader(league.sport) }
+                    item { StandingsHeader(league.sport, league.key) }
                     val groups = view.board.standings[league.key]?.groups.orEmpty()
                     groups.forEach { g ->
                         if (groups.size > 1) item { Heading(g.name) }
                         items(g.rows, key = { "t:${g.name}:${it.team.id}" }) { r ->
                             val mine = r.team.id in myTeamIds
                             val ref = teamRefOf(league, r.team)
-                            StandingsLine(r, league.sport, highlight = mine, star = mine, onClick = ref?.let { { onOpenTeam(it) } })
+                            StandingsLine(r, league.sport, highlight = mine, star = mine, onClick = ref?.let { { onOpenTeam(it) } }, leagueKey = league.key)
                         }
                     }
                 }

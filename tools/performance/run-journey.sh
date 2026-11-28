@@ -14,6 +14,8 @@ run() {
 import pathlib,sys
 s=pathlib.Path(sys.argv[1]).read_text()
 if 'OK (1 test)' not in s or 'FAILURES' in s or 'INSTRUMENTATION_FAILED' in s or 'INSTRUMENTATION_STATUS_CODE: -3' in s:
+    i=s.find('Error in ')
+    if i >= 0: print(s[i:i+8000])  # the failure message (diagnostics), before its long stack trace
     print(s[-5000:]); raise SystemExit(1)
 PY
 }

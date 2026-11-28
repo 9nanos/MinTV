@@ -77,6 +77,9 @@ class ShlDataTest {
         assertEquals(3, SwehockeyParser.standings(html).first().points)
         assertEquals(1, SwehockeyParser.standings(html).first().played)
         assertEquals(3, SwehockeyParser.standings(html).first().goalDifference)
+        SwehockeyParser.standings(html).first().let { row ->
+            assertEquals(listOf(1, 0, 0, 3, 0), listOf(row.won, row.tied, row.lost, row.goalsFor, row.goalsAgainst))
+        }
         assertThrows(IllegalArgumentException::class.java) { SwehockeyParser.standings(html.replace("3:0", "3:0 (-1)")) }
         assertNull(SwehockeyParser.standings(html.replace("3:0", "unknown")).first().goalDifference)
         assertThrows(IllegalArgumentException::class.java) { SwehockeyParser.standings(html.replace("<td>14</td>", "<td>1</td>")) }

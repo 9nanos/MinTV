@@ -17,10 +17,15 @@ internal fun nativeRowTarget(rows: List<NativeRow>, key: String?, vertical: Int,
         .firstOrNull { rows[it].keys.isNotEmpty() } ?: return null
     return rows[target].keys.getOrNull(column.coerceIn(0, rows[target].keys.lastIndex.coerceAtLeast(0)))
 }
+/** Remote-navigation trace for device diagnostics (logcat tag MinTvRows); debug level only. */
+private fun navLog(message: String) { android.util.Log.d("MinTvRows", message) }
 private class CommittedRowsFocus(var keys: Set<String>, var selected: String?, var owned: Boolean)
 
 internal class NativeRowsNavigation(val list: LazyListState, val rails: Map<String, LazyListState>,
-    val modifier: Modifier, val item: (String) -> Modifier)
+    val modifier: Modifier,
+    /** Moves to the first card through the same owner as every remote press (scroll, pending, column). */
+    val enterFirst: () -> Boolean,
+    val item: (String) -> Modifier)
 
 /** Shared native focus owner for Sport/VOD: stable keys, no nearest-rectangle cross-row jumps. */
 @Composable
@@ -67,14 +72,20 @@ internal fun rememberNativeRowsNavigation(rows: List<NativeRow>, profile: Long?,
             }
             // Lazy items created by scroll still need a layout frame before focus is safe.
             if (scrolled) repeat(2) { withFrameNanos { } }
-            if (currentRows.none { target in it.keys }) return@launch
-            if (targets[target]?.requestSafely() != true) {
+            // A row that changes its cards while loading (the Sport hero: "Choose channel" becomes
+            // "Watch match") must not drop the press: aim at the same row and column as it is now.
+            fun current(): String? = if (currentRows.any { target in it.keys }) target
+                else currentRows.firstOrNull { it.id == targetRow.id }?.keys?.let { keys -> keys.getOrNull(col.coerceIn(0, (keys.size - 1).coerceAtLeast(0))) }
+            if (current() == null) { navLog("move $target: gone"); return@launch }
+            val first = current()?.let { targets[it] }?.requestSafely() == true
+            navLog("move $target -> ${current()} scrolled=$scrolled requested=$first")
+            if (!first) {
                 // A briefly detached target must not drop a remote press or steal focus
                 // from a newer movement; cancellation of this Job aborts these retries.
                 repeat(3) {
                     withFrameNanos { }
-                    if (currentRows.none { target in it.keys }) return@launch
-                    if (targets[target]?.requestSafely() == true) return@launch
+                    val now = current() ?: return@launch
+                    if (targets[now]?.requestSafely() == true) { navLog("move $now: retry ok"); return@launch }
                 }
             }
         }
@@ -109,6 +120,7 @@ internal fun rememberNativeRowsNavigation(rows: List<NativeRow>, profile: Long?,
                 // Remote repeats can arrive before a lazy target accepts focus. Advance from
                 // the last requested logical card while movement is active, not the old focus.
                 val key = pending?.takeIf { movement?.isActive == true } ?: selected
+                navLog("key ${event.key} from $key (selected=$selected pending=$pending)")
                 val row = currentRows.firstOrNull { key in it.keys }
                 if (delta != 0) {
                     val target = nativeRowTarget(currentRows, key, delta, column)
@@ -121,7 +133,10 @@ internal fun rememberNativeRowsNavigation(rows: List<NativeRow>, profile: Long?,
             true
         }
     }
-    return NativeRowsNavigation(list, rails, modifier) { id ->
+    val enterFirst: () -> Boolean = {
+        currentRows.firstOrNull { it.keys.isNotEmpty() }?.keys?.firstOrNull()?.let { column = 0; move(it) } ?: false
+    }
+    return NativeRowsNavigation(list, rails, modifier, enterFirst) { id ->
         val requester = if (id == firstKey) first else targets.getOrPut(id) { FocusRequester() }
         targets[id] = requester
         Modifier.focusRequester(requester).onFocusChanged { if (it.isFocused) {

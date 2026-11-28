@@ -234,7 +234,9 @@ fun OwnTVShell(
     // Where ▶ out of the Stage rail returns to: the content, exactly as it was left.
     val contentAreaFocus = remember(activeProfileId) { FocusRequester() }
     var sportEntry by remember(activeProfileId) { mutableStateOf<(() -> Boolean)?>(null) }
-    val sportPlaybackReturn = rememberSportPlaybackReturn(activeProfileId, selectedSection, presentation)
+    // MainSection.SPORTS (Settings → My teams, the player's match button) shows the one Sport destination too.
+    val sportPlaybackReturn = rememberSportPlaybackReturn(activeProfileId, selectedSection,
+        presentation ?: TopDestination.SPORT.takeIf { selectedSection == MainSection.SPORTS })
     var homeEntry by remember(activeProfileId) { mutableStateOf<(() -> Boolean)?>(null) }
     var homeSetupOpen by rememberSaveable(activeProfileId) { mutableStateOf(false) }
     // The guide's entry hook: the TV Guide, or Live TV in Guide view (null while Live TV shows its list).
@@ -252,7 +254,6 @@ fun OwnTVShell(
     // Search opened from the rail leaves focus there, like every section; the remote's Search key,
     // Home's trending search and the way back from a "Go to" go straight into it.
     var searchTakesFocus by remember { mutableStateOf(true) }
-    var sportsEntry by remember { mutableStateOf<(() -> Boolean)?>(null) }
     // Home's Live sports row opens a match page through the same request the player's Match button uses.
     val sportsMatchRequests = koinInject<tv.own.owntv.features.sports.SportsPlayback>()
     var settingsStart by remember { mutableStateOf<tv.own.owntv.features.shell.components.SettingsStart?>(null) }
@@ -1068,7 +1069,8 @@ fun OwnTVShell(
           } else null
           val tryEnterNativeContent: () -> Boolean = {
               restoreFocus = true
-              val hook = if (presentation == TopDestination.SPORT) sportEntry else when (selectedSection) {
+              // 0.20: MainSection.SPORTS (Settings → My teams, the player's match button) shows the one Sport destination.
+              val hook = if (presentation == TopDestination.SPORT || selectedSection == MainSection.SPORTS) sportEntry else when (selectedSection) {
                   MainSection.HOME -> homeEntry
                   MainSection.EPG, MainSection.LIVE_TV -> guideEntry
                   MainSection.MOVIES, MainSection.SERIES -> vodEntry
@@ -1159,7 +1161,7 @@ fun OwnTVShell(
                 ) {
                     pageStateHolder.SaveableStateProvider(nativePageKey(activeProfileId, selectedSection, presentation)) {
                     when {
-                        presentation == TopDestination.SPORT -> tv.own.owntv.features.home.NativeSportScreen(
+                        presentation == TopDestination.SPORT || selectedSection == MainSection.SPORTS -> tv.own.owntv.features.home.NativeSportScreen(
                             liveVm, homeVm, activeProfileId, playerMode == PlayerMode.NONE,
                             { channel, favorites -> scope.launch {
                                 when (liveVm.requestLivePlayback(channel.id, favorites, tv.own.owntv.player.LiveEntryOrigin.SPORT, channel)) {
@@ -1382,16 +1384,6 @@ fun OwnTVShell(
                             onRestored = { restoreFocus = false },
                             onEntryHook = { downloadsEntry = it },
                             contentStart = 64.mpx,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                        selectedSection == MainSection.SPORTS -> tv.own.owntv.features.sports.SportsScreen(
-                            onPlayChannel = { ch, zap -> scope.launch { if (liveVm.ensurePlayingByIdAsync(ch.id, zap)) openFullscreen(MainSection.LIVE_TV) } },
-                            onAddPlaylist = { onSelectSection(MainSection.SETTINGS) },
-                            onChildFocused = { focusedLayer = ShellLayer.CONTENT },
-                            onEntryHook = { sportsEntry = it },
-                            active = playerMode == PlayerMode.NONE,
-                            contentStart = 64.mpx, // Min TV: top navigation, no side rail
                             modifier = Modifier.fillMaxSize(),
                         )
 

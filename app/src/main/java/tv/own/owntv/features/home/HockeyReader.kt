@@ -190,7 +190,9 @@ internal class HockeyReader(private val storage: HockeyStorage, private val page
             require(root.getString("competition") == c.id)
             val rows = root.getJSONArray("rows"); require(rows.length() == 0 || rows.length() == 14)
             HockeyTable(root.getString("season"), (0 until rows.length()).map { i -> val r = rows.getJSONObject(i)
-                ShlStanding(r.getInt("rank"), r.getString("team"), r.getInt("points"), r.optInt("played", -1).takeIf { it >= 0 }, r.optInt("difference", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE })
+                ShlStanding(r.getInt("rank"), r.getString("team"), r.getInt("points"), r.optInt("played", -1).takeIf { it >= 0 }, r.optInt("difference", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE },
+                    r.optInt("won", -1).takeIf { it >= 0 }, r.optInt("tied", -1).takeIf { it >= 0 }, r.optInt("lost", -1).takeIf { it >= 0 },
+                    r.optInt("goalsFor", -1).takeIf { it >= 0 }, r.optInt("goalsAgainst", -1).takeIf { it >= 0 })
             }, root.getLong("at"))
         }.getOrNull())?.takeIf { it.fetchedAt in 1..now && it.seasonId == season && runCatching { validateTable(c, it.rows) }.isSuccess }?.also { tables[c.id] = it }
     }
@@ -272,7 +274,9 @@ internal class HockeyReader(private val storage: HockeyStorage, private val page
             currentCoroutineContext().ensureActive()
             val root = JSONObject().put("competition", c.id).put("season", season).put("at", now)
                 .put("rows", JSONArray().apply { fresh.rows.forEach { r -> put(JSONObject().put("rank", r.rank).put("team", r.team).put("points", r.points)
-                    .put("played", r.played ?: -1).put("difference", r.goalDifference ?: Int.MIN_VALUE)) } })
+                    .put("played", r.played ?: -1).put("difference", r.goalDifference ?: Int.MIN_VALUE)
+                    .put("won", r.won ?: -1).put("tied", r.tied ?: -1).put("lost", r.lost ?: -1)
+                    .put("goalsFor", r.goalsFor ?: -1).put("goalsAgainst", r.goalsAgainst ?: -1)) } })
             storage.cache(cacheKey(c, true), root.toString()); tables[c.id] = fresh
             storage.text("hockey-diagnostic:" + key(c, true), "")
             trace(c, HockeyStage.TABLE, if (fresh.rows.isEmpty()) HockeyOutcome.EMPTY_SUCCESS else HockeyOutcome.VALID_SUCCESS,

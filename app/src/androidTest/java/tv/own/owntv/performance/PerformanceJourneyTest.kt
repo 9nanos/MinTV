@@ -279,7 +279,14 @@ class PerformanceJourneyTest {
                     }
                     repeat(5) { if (focusedSportChannel() < 0) press(KeyEvent.KEYCODE_DPAD_DOWN) }
                     val channelEntry = focusedSportChannel()
-                    check(channelEntry == 0 || channelEntry == 3) { "Unexpected synthetic Sport entry: $channelEntry" }
+                    check(channelEntry == 0 || channelEntry == 3) {
+                        // Diagnostics: where focus is and what Sport shows, in the log itself.
+                        val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
+                        // The runner prints only the end of the message: the focused node goes last.
+                        "Unexpected synthetic Sport entry: $channelEntry\nTREE:\n" +
+                            runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 6) }.getOrDefault("").take(4_000) +
+                            "\nFOCUSED: $focused"
+                    }
                     if (channelEntry != 3) repeat(3) { press(KeyEvent.KEYCODE_DPAD_RIGHT) }
                     hockeyCard(hockeyLabels[3]).assertIsFocused()
                     lateinit var vm: tv.own.owntv.features.live.LiveViewModel
@@ -319,7 +326,7 @@ class PerformanceJourneyTest {
                     waitTag("top-HOME")
                     focus("top-HOME"); press(KeyEvent.KEYCODE_DPAD_CENTER)
                     compose.onNodeWithTag("smart-channel-svt1").assertDoesNotExist()
-                    compose.onNodeWithTag("sport-channel-$hockeyId").assertDoesNotExist()
+                    compose.onNodeWithTag("sport-live-$hockeyId").assertDoesNotExist()
                     settings.setActiveProfile(profile)
                     compose.waitUntil(5_000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
                     chooseSyntheticProfile(); waitTag("top-HOME")
@@ -354,12 +361,26 @@ class PerformanceJourneyTest {
                     // regression does; a semantic focus request from the header no longer sticks here.
                     press(KeyEvent.KEYCODE_DPAD_DOWN)
                     // Content entry is asynchronous; a Right sent before focus arrives would move along the header.
-                    compose.waitUntil(5_000) { compose.onAllNodes(SemanticsMatcher("focused Sport content") {
+                    fun focusedSport(prefix: String) = compose.onAllNodes(SemanticsMatcher("focused $prefix") {
                         it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
-                            it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") &&
+                            it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith(prefix) &&
                             it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Focused) &&
                             it.config[androidx.compose.ui.semantics.SemanticsProperties.Focused]
-                    }).fetchSemanticsNodes().isNotEmpty() }
+                    }).fetchSemanticsNodes().isNotEmpty()
+                    compose.waitUntil(5_000) { focusedSport("sport-") }
+                    // v0.20: the live channel row comes first when channels exist; the hero is the next row.
+                    if (focusedSport("sport-live")) {
+                        press(KeyEvent.KEYCODE_DPAD_DOWN)
+                        try { compose.waitUntil(5_000) { focusedSport("sport-hero") } } catch (error: Throwable) {
+                            val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
+                            val tags = runCatching { compose.onAllNodes(SemanticsMatcher("sport tag") {
+                                it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                                    it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") })
+                                .fetchSemanticsNodes().map { it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag] } }.getOrDefault(emptyList())
+                            val trace = runCatching { shell("logcat -d -s MinTvRows:D").lines().takeLast(25).joinToString("\n") }.getOrDefault("")
+                            throw AssertionError("Hero not focused after Down\nSPORT TAGS: $tags\nNAV TRACE:\n$trace\nFOCUSED: $focused", error)
+                        }
+                    }
                     repeat(4) {
                         if (runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false)) return@repeat
                         press(KeyEvent.KEYCODE_DPAD_RIGHT)
