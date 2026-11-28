@@ -573,7 +573,7 @@ class NativeV011PresentationTest {
         mount(); enter(TopDestination.SPORT)
         compose.onNodeWithTag("sport-live-100").assertIsFocused().assertIsDisplayed()
         // No stored guide in this fixture: the card stays playable and says so honestly.
-        compose.onAllNodesWithText(compose.activity.getString(R.string.mintv_v08_empty_now)).onFirst().assertIsDisplayed()
+        compose.onNodeWithTag("sport-live-100").assert(hasText(compose.activity.getString(R.string.mintv_v08_empty_now), substring = true))
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertEquals(1, played); assertEquals(0, manualChoices); assertEquals(0, details)
         press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("sport-live-101").assertIsFocused()
