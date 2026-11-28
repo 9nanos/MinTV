@@ -506,6 +506,10 @@ fun MoviesScreen(
         }
     }
     val targetMovieId = if (rememberMovies) perCategoryMovieIds[selectedKey] ?: selectedMovie?.id else selectedMovie?.id
+    // Read by the grid items through derivedStateOf (see gridFocusTarget): only the two posters whose
+    // focus role flips recompose on a D-pad move, not every visible poster.
+    val targetMovieIdState = androidx.compose.runtime.rememberUpdatedState(targetMovieId)
+    val contextMovieIdState = androidx.compose.runtime.rememberUpdatedState(contextMovieId)
     val openMenu: (MovieEntity, Int) -> Unit = { movie, index -> contextMovie = movie; contextMovieId = movie.id; contextMovieIndex = index }
     val onMovieFocus: (MovieEntity) -> Unit = { movie ->
         vm.onMovieFocused(movie)
@@ -667,16 +671,16 @@ fun MoviesScreen(
                                         rating = movie.rating?.takeIf { it > 0 }?.let(::vodRating),
                                         line = listOfNotNull(movie.year?.toString(), movie.rating?.takeIf { it > 0 }?.let { stringResource(R.string.mintv_provider_rating) }).joinToString(" · ").takeIf(String::isNotBlank),
 
-                                        progress = movieProgress[movie.id]?.takeIf { it.durationMs > 0 && !vm.isMovieCompleted(it) }?.let { it.positionMs.toFloat() / it.durationMs },
-                                        watched = movieProgress[movie.id]?.let(vm::isMovieCompleted) == true,
+                                        progress = prog?.takeIf { it.durationMs > 0 && !done }?.let { it.positionMs.toFloat() / it.durationMs },
+                                        watched = done,
                                         width = 196.mpx, height = 294.mpx,
                                         onClick = { contextMovieId = movie.id; detailsMovie = movie }, // Min TV: details first
                                         onLongClick = { openMenu(movie, index) },
                                         modifier = Modifier
                                             .gridFocusTarget(
                                                 itemId = movie.id, index = index,
-                                                contextId = contextMovieId, contextFocus = contextFocus,
-                                                selectedId = targetMovieId, selectedFocus = selFocus,
+                                                contextId = contextMovieIdState, contextFocus = contextFocus,
+                                                selectedId = targetMovieIdState, selectedFocus = selFocus,
                                                 firstItemFocus = firstItemFocus,
                                             )
                                             .onFocusChanged { if (it.isFocused) onMovieFocus(movie) }
@@ -797,8 +801,8 @@ fun MoviesScreen(
                                     modifier = Modifier
                                         .gridFocusTarget(
                                             itemId = movie.id, index = index,
-                                            contextId = contextMovieId, contextFocus = contextFocus,
-                                            selectedId = targetMovieId, selectedFocus = selFocus,
+                                            contextId = contextMovieIdState, contextFocus = contextFocus,
+                                            selectedId = targetMovieIdState, selectedFocus = selFocus,
                                             firstItemFocus = firstItemFocus,
                                         )
                                         .focusRequester(stepper.focus(index))
@@ -842,8 +846,8 @@ fun MoviesScreen(
                                     rating = movie.rating?.takeIf { it > 0 }?.let(::vodRating),
                                     line = listOfNotNull(movie.year?.toString(), movie.rating?.takeIf { it > 0 }?.let { stringResource(R.string.mintv_provider_rating) }).joinToString(" · ").takeIf(String::isNotBlank),
 
-                                    progress = movieProgress[movie.id]?.takeIf { it.durationMs > 0 && !vm.isMovieCompleted(it) }?.let { it.positionMs.toFloat() / it.durationMs },
-                                    watched = movieProgress[movie.id]?.let(vm::isMovieCompleted) == true,
+                                    progress = prog?.takeIf { it.durationMs > 0 && !done }?.let { it.positionMs.toFloat() / it.durationMs },
+                                    watched = done,
                                     width = posterW, height = posterW * 1.5f,
                                     compact = true,
                                     onClick = { contextMovieId = movie.id; detailsMovie = movie }, // Min TV: details first
@@ -851,8 +855,8 @@ fun MoviesScreen(
                                     modifier = Modifier
                                         .gridFocusTarget(
                                             itemId = movie.id, index = index,
-                                            contextId = contextMovieId, contextFocus = contextFocus,
-                                            selectedId = targetMovieId, selectedFocus = selFocus,
+                                            contextId = contextMovieIdState, contextFocus = contextFocus,
+                                            selectedId = targetMovieIdState, selectedFocus = selFocus,
                                             firstItemFocus = firstItemFocus,
                                         )
                                         .onFocusChanged { if (it.isFocused) onMovieFocus(movie) }

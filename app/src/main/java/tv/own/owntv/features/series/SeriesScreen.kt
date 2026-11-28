@@ -571,6 +571,10 @@ private fun SeriesGrid(
         }
     }
     val targetSeriesId = if (rememberSeries) perCategorySeriesIds[selectedKey] ?: selectedSeries?.id else selectedSeries?.id
+    // Read by the grid items through derivedStateOf (see gridFocusTarget): only the two posters whose
+    // focus role flips recompose on a D-pad move, not every visible poster.
+    val targetSeriesIdState = androidx.compose.runtime.rememberUpdatedState(targetSeriesId)
+    val contextSeriesIdState = androidx.compose.runtime.rememberUpdatedState(contextSeriesId)
     val openMenu: (tv.own.owntv.core.database.entity.SeriesEntity, Int) -> Unit = { show, index -> contextSeries = show; contextSeriesId = show.id; contextSeriesIndex = index }
     val onShowFocus: (tv.own.owntv.core.database.entity.SeriesEntity) -> Unit = { show ->
         vm.onSeriesFocused(show)
@@ -732,8 +736,8 @@ private fun SeriesGrid(
                                         modifier = Modifier
                                             .gridFocusTarget(
                                                 itemId = show.id, index = index,
-                                                contextId = contextSeriesId, contextFocus = contextFocus,
-                                                selectedId = targetSeriesId, selectedFocus = gridSelFocus,
+                                                contextId = contextSeriesIdState, contextFocus = contextFocus,
+                                                selectedId = targetSeriesIdState, selectedFocus = gridSelFocus,
                                                 firstItemFocus = firstItemFocus,
                                             )
                                             .onFocusChanged { if (it.isFocused) onShowFocus(show) }
@@ -852,8 +856,8 @@ private fun SeriesGrid(
                                     modifier = Modifier
                                         .gridFocusTarget(
                                             itemId = show.id, index = index,
-                                            contextId = contextSeriesId, contextFocus = contextFocus,
-                                            selectedId = targetSeriesId, selectedFocus = gridSelFocus,
+                                            contextId = contextSeriesIdState, contextFocus = contextFocus,
+                                            selectedId = targetSeriesIdState, selectedFocus = gridSelFocus,
                                             firstItemFocus = firstItemFocus,
                                         )
                                         .focusRequester(stepper.focus(index))
@@ -902,8 +906,8 @@ private fun SeriesGrid(
                                     modifier = Modifier
                                         .gridFocusTarget(
                                             itemId = show.id, index = index,
-                                            contextId = contextSeriesId, contextFocus = contextFocus,
-                                            selectedId = targetSeriesId, selectedFocus = gridSelFocus,
+                                            contextId = contextSeriesIdState, contextFocus = contextFocus,
+                                            selectedId = targetSeriesIdState, selectedFocus = gridSelFocus,
                                             firstItemFocus = firstItemFocus,
                                         )
                                         .onFocusChanged { if (it.isFocused) onShowFocus(show) }
