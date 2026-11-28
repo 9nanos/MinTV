@@ -377,7 +377,8 @@ class PerformanceJourneyTest {
                                 it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
                                     it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") })
                                 .fetchSemanticsNodes().map { it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag] } }.getOrDefault(emptyList())
-                            throw AssertionError("Hero not focused after Down\nSPORT TAGS: $tags\nFOCUSED: $focused", error)
+                            val trace = runCatching { shell("logcat -d -s MinTvRows:D").lines().takeLast(25).joinToString("\n") }.getOrDefault("")
+                            throw AssertionError("Hero not focused after Down\nSPORT TAGS: $tags\nNAV TRACE:\n$trace\nFOCUSED: $focused", error)
                         }
                     }
                     repeat(4) {

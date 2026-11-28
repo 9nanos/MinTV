@@ -373,6 +373,11 @@
 2	protocol	app/src/main/java/tv/own/owntv/features/home/NativePublicSportHero.kt	sport-hero-explore
 2	protocol	app/src/main/java/tv/own/owntv/features/home/NativePublicSportHero.kt	sport-hero-teams
 1	protocol	app/src/main/java/tv/own/owntv/features/home/NativePublicSportHero.kt	sport-public-hero
+1	log	app/src/main/java/tv/own/owntv/features/home/NativeRowsNavigation.kt	MinTvRows
+1	log	app/src/main/java/tv/own/owntv/features/home/NativeRowsNavigation.kt	key ${event.key} from $key (selected=$selected pending=$pending)
+1	log	app/src/main/java/tv/own/owntv/features/home/NativeRowsNavigation.kt	move $now: retry ok
+1	log	app/src/main/java/tv/own/owntv/features/home/NativeRowsNavigation.kt	move $target -> ${current()} scrolled=$scrolled requested=$first
+1	log	app/src/main/java/tv/own/owntv/features/home/NativeRowsNavigation.kt	move $target: gone
 2	technical	app/src/main/java/tv/own/owntv/features/home/NativeSportDashboard.kt	$id-${game.id}
 2	protocol	app/src/main/java/tv/own/owntv/features/home/NativeSportDashboard.kt	$id-${item.key}
 1	protocol	app/src/main/java/tv/own/owntv/features/home/NativeSportDashboard.kt	dMMM
