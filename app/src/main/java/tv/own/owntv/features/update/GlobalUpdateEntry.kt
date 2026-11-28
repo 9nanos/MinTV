@@ -42,7 +42,8 @@ internal fun UpdateEntryPresentation(state: MinTvUpdater.State, channel: String,
         state is MinTvUpdater.State.Downloading -> stringResource(R.string.v016_update_entry_progress, state.percent)
         state == MinTvUpdater.State.Verifying || state == MinTvUpdater.State.Installing -> stringResource(R.string.v016_update_entry_working)
         state == MinTvUpdater.State.Installed -> stringResource(R.string.v016_update_entry_installed)
-        else -> stringResource(R.string.mintv_v08_version_chip, BuildConfig.VERSION_NAME)
+        // Min TV 0.21: always says what it does, so updating is one press from anywhere in the top bar.
+        else -> stringResource(R.string.mintv_v021_update_chip, BuildConfig.VERSION_NAME)
     }
     val description = stringResource(R.string.v016_update_entry_description, channel, label)
     StageSurface(action, 12.mpx, modifier.height(44.mpx).widthIn(max = 220.mpx)

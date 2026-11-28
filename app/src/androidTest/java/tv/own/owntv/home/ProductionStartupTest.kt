@@ -606,17 +606,24 @@ class ProductionStartupTest {
                 compose.onNodeWithTag("top-SERIES").assertIsFocused()
                 compose.onNodeWithTag("top-PROFILE").performClick()
                 compose.onNodeWithTag("sub-MORE").assertDoesNotExist()
-                compose.onNodeWithTag("settings-group-PROFILE").assertIsDisplayed()
+                compose.onNodeWithTag("settings-section-PROFILE").assertIsDisplayed()
                 assertNavigationLevels(contextual = true)
-                compose.onNodeWithTag("settings-group-PROFILE").performClick()
-                compose.onNodeWithTag("settings-library-history").performScrollTo().performClick()
+                compose.onNodeWithTag("settings-section-PROFILE").performClick()
+                // Min TV 0.21: Update is Profil's first row; the Library & history page is gone (Favourites and
+                // Recently watched are Film/Serier rows) and its system pages are ordinary rows in Sport & system.
+                compose.onNodeWithTag("settings-row-check_updates").assertIsDisplayed()
+                compose.onNodeWithTag("settings-library-history").assertDoesNotExist()
                 nativeCapture("profile")
-                for (page in listOf("FAVORITES", "HISTORY", "BACKUP", "LOCAL_SYNC", "ERROR_LOG", "ABOUT")) {
-                    compose.onNodeWithTag("profile-page-$page").performClick()
-                    compose.onNodeWithTag("profile-content-$page").assertIsDisplayed()
+                compose.onNodeWithTag("settings-section-SYSTEM").performClick()
+                for (page in listOf("BACKUP", "LOCAL_SYNC", "ERROR_LOG", "ABOUT")) {
+                    compose.onNodeWithTag("settings-row-tab_$page").performScrollTo().assertIsDisplayed()
                 }
+                compose.onNodeWithTag("settings-row-tab_ABOUT").performScrollTo().performClick()
+                compose.onNodeWithTag("settings-categories").assertDoesNotExist()
+                press(KeyEvent.KEYCODE_BACK)
+                compose.waitUntil(5_000) { compose.onAllNodesWithTag("settings-categories").fetchSemanticsNodes().isNotEmpty() }
                 compose.onNodeWithTag("top-PROFILE").performClick()
-                compose.onNodeWithTag("settings-group-PROFILE").performClick()
+                compose.onNodeWithTag("settings-section-PROFILE").performClick()
                 compose.onNodeWithTag("settings-downloads").performScrollTo().performClick()
                 compose.onNodeWithTag("top-PROFILE").assertIsSelected()
                 nativeCapture("downloads")
@@ -625,11 +632,11 @@ class ProductionStartupTest {
                 compose.onNode(hasText(recordingsLabel) and hasClickAction()).performClick()
                 nativeCapture("recordings")
                 compose.onNodeWithTag("top-PROFILE").performClick()
-                compose.onNodeWithTag("settings-group-PROFILE").assertIsDisplayed()
+                compose.onNodeWithTag("settings-section-PROFILE").assertIsDisplayed()
                 assertNavigationLevels(contextual = true)
                 nativeCapture("settings")
                 // Management replaces the settings selector, never stacks another menu on it.
-                compose.onNodeWithTag("settings-group-SOURCES").performClick()
+                compose.onNodeWithTag("settings-section-SOURCES").performClick()
                 var collectionLabel = ""
                 var libraryLabel = ""
                 scenario.onActivity {

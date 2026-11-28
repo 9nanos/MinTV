@@ -469,14 +469,14 @@ class NativeV011PresentationTest {
     @Test fun homeMatchFirstActionsAt720() { matchFirstHome() }
 
     @Test fun settingsLeftReturnsToActiveCategoryAfterScrollingDetails() {
-        var selected by mutableIntStateOf(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal)
+        var selected by mutableIntStateOf(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal)
         lateinit var category: FocusRequester
         compose.setContent {
             MaterialTheme {
                 category = remember { FocusRequester() }
                 val content = remember { FocusRequester() }
                 tv.own.owntv.features.settings.StageSettingsPage(
-                    group = tv.own.owntv.features.shell.components.SettingsGroup.entries[selected].name, count = "", searchQuery = "", onSearchQuery = {},
+                    group = tv.own.owntv.features.shell.components.SettingsSection.entries[selected].name, count = "", searchQuery = "", onSearchQuery = {},
                     scroll = androidx.compose.foundation.rememberScrollState(), showSearch = false,
                     rowsFocus = content, rowsReturnFocus = category,
                     categories = { tv.own.owntv.features.shell.components.SettingsCategoryMenu(selected, { selected = it },
@@ -486,25 +486,25 @@ class NativeV011PresentationTest {
             }
         }
         compose.runOnIdle { category.requestFocus() }; compose.waitForIdle()
-        compose.onNodeWithTag("settings-group-APP").assertIsFocused().assertIsSelected()
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsFocused().assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("setting-0").assertIsFocused()
         repeat(6) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.onNodeWithTag("setting-6").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNodeWithTag("settings-group-APP").assertIsFocused()
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal, selected)
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsFocused()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal, selected)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         try {
             compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("setting-6").assertIsFocused(); true }.getOrDefault(false) }
         } catch (error: Throwable) { throw AssertionError(compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 10), error) }
         press(KeyEvent.KEYCODE_DPAD_LEFT); press(KeyEvent.KEYCODE_DPAD_UP)
-        compose.onNodeWithTag("settings-group-APP").assertIsSelected()
-        compose.onNodeWithTag("settings-group-WATCHING").assertIsFocused().assertIsNotSelected()
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal, selected)
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsSelected()
+        compose.onNodeWithTag("settings-section-PLAYBACK").assertIsFocused().assertIsNotSelected()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal, selected)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("setting-0").assertIsFocused(); true }.getOrDefault(false) }
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.WATCHING.ordinal, selected)
-        press(KeyEvent.KEYCODE_DPAD_LEFT); compose.onNodeWithTag("settings-group-WATCHING").assertIsFocused()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.PLAYBACK.ordinal, selected)
+        press(KeyEvent.KEYCODE_DPAD_LEFT); compose.onNodeWithTag("settings-section-PLAYBACK").assertIsFocused()
     }
     @Test fun homeGuideArrivalsAndMissingNextPreserveActionFocus() {
         var currentGuide by mutableStateOf(HomeGuideState(now, emptyMap()))

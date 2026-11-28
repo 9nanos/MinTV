@@ -6,4 +6,12 @@
     <string name="mintv_v021_search_movies">Sök film</string>
     <string name="mintv_v021_search_series">Sök serier</string>
     <string name="mintv_v021_vod_empty">Här finns inget än. Lägg till en källa med film eller serier, eller sök.</string>
+    <string name="mintv_v021_section_profile">Profil och uppdatering</string>
+    <string name="mintv_v021_section_sources">Källor och tv-guide</string>
+    <string name="mintv_v021_section_look">Utseende</string>
+    <string name="mintv_v021_section_playback">Uppspelning</string>
+    <string name="mintv_v021_section_system">Sport och system</string>
+    <string name="mintv_v021_update_app">Uppdatera appen</string>
+    <string name="mintv_v021_update_chip">Uppdatera · v%1$s</string>
+    <string name="mintv_v021_developer">Utvecklarverktyg</string>
 </resources>

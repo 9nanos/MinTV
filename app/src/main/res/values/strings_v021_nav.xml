@@ -6,4 +6,12 @@
     <string name="mintv_v021_search_movies">Search movies</string>
     <string name="mintv_v021_search_series">Search series</string>
     <string name="mintv_v021_vod_empty">Nothing here yet. Add a source with movies or series, or search.</string>
+    <string name="mintv_v021_section_profile">Profile &amp; update</string>
+    <string name="mintv_v021_section_sources">Sources &amp; TV guide</string>
+    <string name="mintv_v021_section_look">Appearance</string>
+    <string name="mintv_v021_section_playback">Playback</string>
+    <string name="mintv_v021_section_system">Sport &amp; system</string>
+    <string name="mintv_v021_update_app">Update the app</string>
+    <string name="mintv_v021_update_chip">Update · v%1$s</string>
+    <string name="mintv_v021_developer">Developer tools</string>
 </resources>
