@@ -62,13 +62,14 @@ consent. Next step: bring SHL/HA into the upstream engine so the hub can be reti
 ### Changes
 - The upstream section now opens **inside** the Sport destination (`NativeSportScreen`). The shell no
   longer has a separate `SportsScreen` page; every `MainSection.SPORTS` request lands in Sport.
-- New **Resultat & kalender** action on the Sport hero (after Explore) opens it; focus moves into it.
-  Back from its first page returns to the same action. Its own pages keep their Back behaviour.
+- New **Resultat & kalender** tile in Explore (after Sources) opens it; focus moves into it. Back
+  from its first page returns to the tile. Its own pages keep their Back behaviour. (A hero button was
+  tried first: the hero action row has no room for a fifth action and truncated it.)
 - Settings → My teams and the player's match button open the requested team/match inside Sport.
 
 ### Tests
-- `ProductionStartupTest`: Sport → Resultat & kalender opens the section with the Sport tab still
-  selected, Back returns focus to the action. App unit tests for shell/home/sports pass locally (283).
+- `ProductionStartupTest`: Sport → Explore → Resultat & kalender opens the section with the Sport tab still
+  selected, Back returns focus to the tile. App unit tests for shell/home/sports pass locally (283).
 
 ### Not done yet (M2–M4)
 Unified hub/calendar/My teams, sport filters, ranked Watch Match fallback, performance before/after on
