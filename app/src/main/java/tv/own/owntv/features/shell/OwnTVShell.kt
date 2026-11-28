@@ -153,14 +153,8 @@ fun OwnTVShell(
     val onSelectSection: (MainSection) -> Unit = { section ->
         if (section == MainSection.SEARCH && selectedSection != MainSection.SEARCH) searchParent = primary
         if (section == MainSection.LIVE_TV || section == MainSection.EPG) lastTv = section
-        // 0.20: the upstream Sports section opens inside Min TV's one Sport destination, never as a page of its own.
-        if (section == MainSection.SPORTS) {
-            presentation = TopDestination.SPORT
-            onSelectLegacySection(MainSection.HOME)
-        } else {
-            presentation = null
-            onSelectLegacySection(section)
-        }
+        presentation = null
+        onSelectLegacySection(section)
     }
     val colors = OwnTVTheme.colors
     val noSourceLabel = stringResource(R.string.shell_no_source)
