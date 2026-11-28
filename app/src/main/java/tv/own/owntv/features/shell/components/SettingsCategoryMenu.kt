@@ -30,7 +30,7 @@ import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.ui.stage.StagePill
 import tv.own.owntv.ui.theme.mpx
 
-/** Existing ordinal deep links stay stable; one visible category rail, no More > Settings stack. */
+/** One visible category rail of [SettingsSection]s; group ordinals stay the deep-link identity. */
 @Composable
 internal fun SettingsCategoryMenu(selected: Int, choose: (Int) -> Unit, enter: () -> Unit, target: FocusRequester) {
     val list = rememberLazyListState()
@@ -40,30 +40,26 @@ internal fun SettingsCategoryMenu(selected: Int, choose: (Int) -> Unit, enter: (
         choose(index)
         scope.launch { repeat(2) { withFrameNanos { } }; enter() }
     }
-    LaunchedEffect(selected) { list.scrollToItem(selected.coerceIn(SettingsGroup.entries.indices)) }
+    LaunchedEffect(selected) { list.scrollToItem(selected.coerceIn(SettingsSection.entries.indices)) }
     LazyColumn(Modifier.fillMaxSize().testTag("settings-categories").focusGroup().onPreviewKeyEvent {
         if (it.key == Key.DirectionRight) {
             if (it.type == KeyEventType.KeyDown) { activate(focused) }
             true
         } else false
     }, state = list, verticalArrangement = Arrangement.spacedBy(10.mpx)) {
-        itemsIndexed(SettingsGroup.entries) { index, group ->
+        // Min TV 0.21: five sections, each one page (see [SettingsSection]).
+        itemsIndexed(SettingsSection.entries) { index, section ->
             val active = index == selected
             val accent = stageAccent.accent
             val radius = 12.mpx
-            val title = stringResource(when (group) {
-                SettingsGroup.CONTENT -> R.string.v016_category_content
-                SettingsGroup.SOUND -> R.string.v016_category_sound
-                SettingsGroup.WATCHING -> R.string.v016_category_watching
-                else -> group.titleRes
-            })
+            val title = stringResource(section.titleRes)
             StageSurface({ activate(index) }, radius, focusStyle = StageFocus.FX,
                 idle = Modifier.background(if (active) accent.copy(alpha = .14f) else StageColors.ControlFill, RoundedCornerShape(radius))
                     .border(1.mpx, if (active) accent.copy(alpha = .7f) else StageColors.ControlFill, RoundedCornerShape(radius)),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 60.mpx)
                     .then(if (active) Modifier.focusRequester(target) else Modifier)
                     .onFocusChanged { if (it.isFocused) focused = index }
-                    .semantics { this.selected = active }.testTag("settings-group-${group.name}")) { hasFocus ->
+                    .semantics { this.selected = active }.testTag("settings-section-${section.name}")) { hasFocus ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.mpx, vertical = 12.mpx),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.mpx)) {
                     TvText(title, Modifier.weight(1f), size = 22, bold = active || hasFocus, lines = 2)

@@ -31,46 +31,58 @@ import tv.own.owntv.features.series.SeriesScreen
 
 internal enum class NativeVodMode { LANDING, LIBRARY, MOVIE_DETAILS, SERIES_DETAILS }
 
-/** Presentation router only. Existing VMs/details, access checks and player remain authoritative. */
+/** Where a row's "Show all" leads: the existing grid, pinned to that one list (no category rail). */
+internal fun vodShowAllKey(row: DiscoveryRow): tv.own.owntv.core.live.LiveKey? = when {
+    row.folder != null -> tv.own.owntv.core.live.LiveKey.Folder(row.folder.id)
+    row.kind == DiscoveryKind.FAVORITES -> tv.own.owntv.core.live.LiveKey.Favorites
+    row.kind == DiscoveryKind.HISTORY -> tv.own.owntv.core.live.LiveKey.History
+    else -> null
+}
+
+/**
+ * One Film or Serier tab (Min TV 0.21). Presentation router only: existing VMs/details, access checks and the
+ * player remain authoritative. The landing reads the cached discovery shelf for this one type.
+ */
 @Composable
 internal fun NativeVodHost(profile: Long?, section: MainSection, active: Boolean, movieVm: MovieViewModel,
     seriesVm: SeriesViewModel, onSection: (MainSection) -> Unit, onFullscreen: (MainSection) -> Unit,
     onChildFocused: () -> Unit, onHeader: () -> Unit, onEntry: ((() -> Boolean)?) -> Unit,
-    modifier: Modifier = Modifier) {
+    onSearch: () -> Unit, modifier: Modifier = Modifier) {
     val settings: SettingsRepository = koinInject()
     val db: OwnTVDatabase = koinInject()
     val custom: CustomizationStore = koinInject()
     val repository: DiscoveryRepository = koinInject()
+    val type = if (section == MainSection.SERIES) MetadataType.TV else MetadataType.MOVIE
     val access by remember { activeProfileSources(settings, db.sourceDao()) }.collectAsStateWithLifecycle(initialValue = null)
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
-    var mode by rememberSaveable(profile) { mutableStateOf(NativeVodMode.LANDING) }
-    var returnAfterPlayer by rememberSaveable(profile) { mutableStateOf(false) }
-    val first = remember(profile) { FocusRequester() }
-    var landingEntry by remember(profile) { mutableStateOf<(() -> Boolean)?>(null) }
-    var childEntry by remember(profile) { mutableStateOf<(() -> Boolean)?>(null) }
-    var restore by remember(profile) { mutableStateOf(false) }
+    var mode by rememberSaveable(profile, type) { mutableStateOf(NativeVodMode.LANDING) }
+    var libraryKey by remember(profile, type) { mutableStateOf<tv.own.owntv.core.live.LiveKey?>(null) }
+    var returnAfterPlayer by rememberSaveable(profile, type) { mutableStateOf(false) }
+    val first = remember(profile, type) { FocusRequester() }
+    var landingEntry by remember(profile, type) { mutableStateOf<(() -> Boolean)?>(null) }
+    var childEntry by remember(profile, type) { mutableStateOf<(() -> Boolean)?>(null) }
+    var restore by remember(profile, type) { mutableStateOf(false) }
     val currentMode by rememberUpdatedState(mode)
     val enterLanding by rememberUpdatedState(landingEntry)
     val enterChild by rememberUpdatedState(childEntry)
     val report by rememberUpdatedState(onEntry)
-    DisposableEffect(profile) {
+    DisposableEffect(profile, type) {
         report { (if (currentMode == NativeVodMode.LANDING) enterLanding else enterChild)?.invoke() ?: false }
         onDispose { report(null) }
     }
     val foreground = active && lifecycle == Lifecycle.State.RESUMED && profile != null && access?.profileId == profile
-    val movies = rememberDiscovery(MetadataType.MOVIE, mode == NativeVodMode.LANDING, foreground && mode == NativeVodMode.LANDING, profile ?: -1L)
-    val series = rememberDiscovery(MetadataType.TV, mode == NativeVodMode.LANDING, foreground && mode == NativeVodMode.LANDING, profile ?: -1L)
-    val movieVisibility by remember(profile) { custom.observe(profile ?: -1, MediaType.MOVIE) }.collectAsStateWithLifecycle(initialValue = null)
-    val seriesVisibility by remember(profile) { custom.observe(profile ?: -1, MediaType.SERIES) }.collectAsStateWithLifecycle(initialValue = null)
+    val shelf = rememberDiscovery(type, mode == NativeVodMode.LANDING, foreground && mode == NativeVodMode.LANDING, profile ?: -1L)
+    val visibility by remember(profile, type) { custom.observe(profile ?: -1, if (type == MetadataType.MOVIE) MediaType.MOVIE else MediaType.SERIES) }
+        .collectAsStateWithLifecycle(initialValue = null)
     // Clear immediately on ownership/visibility changes, before the bounded progress reread finishes.
-    var resumes by remember(profile, access, movieVisibility, seriesVisibility) { mutableStateOf<List<SmartResume>>(emptyList()) }
+    var resumes by remember(profile, type, access, visibility) { mutableStateOf<List<SmartResume>>(emptyList()) }
     val scope = rememberCoroutineScope()
-    var variants by remember(profile) { mutableStateOf<DiscoveryCard?>(null) }
+    var variants by remember(profile, type) { mutableStateOf<DiscoveryCard?>(null) }
     val requestedMovie by movieVm.detailsRequest.collectAsStateWithLifecycle()
     val openedSeries by seriesVm.openedSeries.collectAsStateWithLifecycle()
-    LaunchedEffect(requestedMovie, openedSeries?.id) {
-        if (requestedMovie?.let { it.second == profile } == true) mode = NativeVodMode.MOVIE_DETAILS
-        else if (openedSeries != null && mode == NativeVodMode.LANDING) mode = NativeVodMode.SERIES_DETAILS
+    LaunchedEffect(requestedMovie, openedSeries?.id, type) {
+        if (type == MetadataType.MOVIE && requestedMovie?.let { it.second == profile } == true && mode == NativeVodMode.LANDING) mode = NativeVodMode.MOVIE_DETAILS
+        else if (type == MetadataType.TV && openedSeries != null && mode == NativeVodMode.LANDING) mode = NativeVodMode.SERIES_DETAILS
     }
     LaunchedEffect(active) {
         if (!active && mode != NativeVodMode.LANDING && mode != NativeVodMode.LIBRARY) returnAfterPlayer = true
@@ -78,28 +90,37 @@ internal fun NativeVodHost(profile: Long?, section: MainSection, active: Boolean
             returnAfterPlayer = false; seriesVm.closeSeries(); mode = NativeVodMode.LANDING; restore = true
         }
     }
-    LaunchedEffect(profile, access, movieVisibility, seriesVisibility, foreground, mode) {
-        if (!foreground || access?.profileId != profile || movieVisibility == null || seriesVisibility == null) return@LaunchedEffect
-        try { resumes = readSmartResumes(db, settings, custom, profile).take(3) }
+    LaunchedEffect(profile, type, access, visibility, foreground, mode) {
+        if (!foreground || access?.profileId != profile || visibility == null) return@LaunchedEffect
+        val kind = if (type == MetadataType.MOVIE) SmartResumeKind.MOVIE else SmartResumeKind.EPISODE
+        try { resumes = readSmartResumes(db, settings, custom, profile).filter { it.kind == kind }.take(6) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { resumes = emptyList() }
     }
-    LaunchedEffect(restore, mode, movies, series) {
+    LaunchedEffect(restore, mode, shelf) {
         if (restore && mode == NativeVodMode.LANDING) { repeat(2) { withFrameNanos { } }; if (enterLanding?.invoke() == true) restore = false }
     }
-    fun landing() { mode = NativeVodMode.LANDING; variants = null; restore = true }
-    fun library(type: MetadataType) { mode = NativeVodMode.LIBRARY; variants = null; onSection(if (type == MetadataType.MOVIE) MainSection.MOVIES else MainSection.SERIES) }
+    fun landing() { mode = NativeVodMode.LANDING; libraryKey = null; variants = null; restore = true }
+    fun showAll(row: DiscoveryRow) {
+        val key = vodShowAllKey(row) ?: return
+        val owner = profile ?: return
+        scope.launch {
+            if (row.folder != null && !repository.folderAvailable(row.folder, owner, type)) return@launch
+            if (settings.activeProfileId.first() != owner) return@launch
+            libraryKey = key; variants = null; mode = NativeVodMode.LIBRARY
+        }
+    }
     fun title(card: DiscoveryCard) {
         if (card.variants.isNotEmpty()) { variants = card; return }
         val owner = profile ?: return
         scope.launch {
             if (!repository.available(card, owner) || settings.activeProfileId.first() != owner) return@launch
             if (card.type == MetadataType.MOVIE) {
-                movieVm.requestDetails(card); mode = NativeVodMode.MOVIE_DETAILS; onSection(MainSection.MOVIES)
+                movieVm.requestDetails(card); mode = NativeVodMode.MOVIE_DETAILS
             } else {
                 val show = db.seriesDao().getSeriesById(card.id) ?: return@launch
                 if (CustomizeKeys.series(show) != card.stableKey || !repository.available(card, owner) || settings.activeProfileId.first() != owner) return@launch
-                seriesVm.openSeries(show); mode = NativeVodMode.SERIES_DETAILS; onSection(MainSection.SERIES)
+                seriesVm.openSeries(show); mode = NativeVodMode.SERIES_DETAILS
             }
         }
     }
@@ -115,16 +136,18 @@ internal fun NativeVodHost(profile: Long?, section: MainSection, active: Boolean
     }
     BackHandler(mode != NativeVodMode.LANDING) { landing() }
     Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() }) {
-        NativeVodLanding(NativeVodSnapshot(profile, nativeVodPreview(movies), nativeVodPreview(series), resumes), first,
-            { landingEntry = it }, onHeader, ::library, ::title, ::resume)
+        NativeVodLanding(NativeVodSnapshot(profile, type, shelf.rows, resumes, loading = foreground && shelf.rankedAt == null && shelf.rows.isEmpty() && !shelf.failed),
+            first, { landingEntry = it }, onHeader, onSearch, ::showAll, ::title, ::resume)
         if (mode != NativeVodMode.LANDING) Box(Modifier.fillMaxSize().background(MinTvNavy)) {
-            if (section == MainSection.MOVIES) MoviesScreen({ onFullscreen(MainSection.MOVIES) }, onChildFocused,
+            val locked = libraryKey.takeIf { mode == NativeVodMode.LIBRARY }
+            if (type == MetadataType.MOVIE) MoviesScreen({ onFullscreen(MainSection.MOVIES) }, onChildFocused, lockedKey = locked,
                 onEntryHook = { childEntry = it }, onDetailsClosed = { if (mode == NativeVodMode.MOVIE_DETAILS) landing() })
-            else SeriesScreen({ onFullscreen(MainSection.SERIES) }, onChildFocused,
+            else SeriesScreen({ onFullscreen(MainSection.SERIES) }, onChildFocused, lockedKey = locked,
                 onEntryHook = { childEntry = it }, onSeriesClosed = { if (mode == NativeVodMode.SERIES_DETAILS) landing() })
         }
         variants?.let { card -> ProviderVariantPicker(card,
-            onSelect = { variants = null; title(it.copy(variants = emptyList())) }, onAll = { library(card.type) },
+            onSelect = { variants = null; title(it.copy(variants = emptyList())) },
+            onAll = { shelf.rows.firstOrNull { row -> row.cards.any { it.stableKey == card.stableKey } && row.folder != null }?.let(::showAll) ?: run { variants = null } },
             onDismiss = { variants = null; restore = true }) }
     }
 }

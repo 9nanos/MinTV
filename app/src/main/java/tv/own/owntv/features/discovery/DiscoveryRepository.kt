@@ -91,6 +91,16 @@ internal class DiscoveryRepository(private val db: OwnTVDatabase, private val se
             .mapIndexed { index, cat -> cat.id to ProviderFolder(cat.id, cat.sourceId, CustomizeKeys.category(cat),
                 cust.categoryNames[CustomizeKeys.category(cat)] ?: cat.name, sourceNames[cat.sourceId].orEmpty(), index) }.toMap()
         val folderCollector = ProviderFolderCollector(folders)
+        // Min TV 0.21: the profile's own Favourites and Recently watched as the first rows of the Film/Serier
+        // tabs. Ids only here (both tables are small and indexed); the cards come from the same scan below, so
+        // hidden items, locked and adult categories are filtered exactly like every other row.
+        val favoriteRank = HashMap<Long, Int>()
+        db.readCatalog("SELECT itemId FROM favorites WHERE profileId=? AND mediaType=? ORDER BY addedAt DESC LIMIT 20",
+            arrayOf<Any>(profile, media.name)) { cursor -> while (cursor.moveToNext()) favoriteRank[cursor.getLong(0)] = favoriteRank.size }
+        val historyRank = HashMap<Long, Int>()
+        db.readCatalog("SELECT itemId FROM watch_history WHERE profileId=? AND mediaType=? ORDER BY watchedAt DESC LIMIT 20",
+            arrayOf<Any>(profile, media.name)) { cursor -> while (cursor.moveToNext()) historyRank[cursor.getLong(0)] = historyRank.size }
+        val favoriteCards = ArrayList<DiscoveryCard>(); val historyCards = ArrayList<DiscoveryCard>()
         val collector = DiscoveryAccumulator(candidates, seedGenres.take(8).toSet())
         var last = 0L; var scanned = 0; var ended = false
         while (scanned < 100_000) {
@@ -115,14 +125,20 @@ internal class DiscoveryRepository(private val db: OwnTVDatabase, private val se
                         if (metadataEnabled) genres(if (cursor.isNull(10)) null else cursor.getString(10)) else emptySet(), if (cursor.isNull(9)) null else cursor.getInt(9), cursor.getInt(11) == 1,
                         if (cursor.isNull(8)) null else cursor.getLong(8), cursor.getInt(13))
                     collector.add(card)
+                    if (card.id in favoriteRank) favoriteCards += card
+                    if (card.id in historyRank) historyCards += card
                     val folder = folders[card.categoryId]
                     if (folder != null && cust.movedFromOrigin[key] != folder.stableKey) folderCollector.add(card)
                 }
             }
             if (count < 400) { ended = true; break }
         }
-        val rows = folderCollector.rows() + collector.rows()
-        val featured = (rows.filter { it.kind == DiscoveryKind.TOP } + rows).flatMap { it.cards }
+        val personal = buildList {
+            if (favoriteCards.isNotEmpty()) add(DiscoveryRow(DiscoveryKind.FAVORITES, favoriteCards.sortedBy { favoriteRank.getValue(it.id) }))
+            if (historyCards.isNotEmpty()) add(DiscoveryRow(DiscoveryKind.HISTORY, historyCards.sortedBy { historyRank.getValue(it.id) }))
+        }
+        val rows = personal + folderCollector.rows() + collector.rows()
+        val featured = (rows.filter { it.kind == DiscoveryKind.TOP } + rows.filter { it.kind != DiscoveryKind.FAVORITES && it.kind != DiscoveryKind.HISTORY }).flatMap { it.cards }
             .distinctBy { it.stableKey }.take(6)
         var hero: DiscoveryHero? = null
         for (card in featured) {

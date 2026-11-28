@@ -91,6 +91,8 @@ class NativeV011PresentationTest {
     private var probableBroadcast by mutableStateOf(false)
     private val broadcastChannel = ChannelEntity(id = 401, sourceId = 101, name = "TV4 Sport Live 1 HD", streamUrl = "http://127.0.0.1:9/unavailable")
     private var resumed: String? = null
+    private var searched = 0
+    private var shownAll = 0
     private fun shell(command: String): String = android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
     @Before fun disposableOnly() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("disposableEmulator") == "true" && shell("getprop ro.kernel.qemu").trim() == "1")
@@ -141,9 +143,14 @@ class NativeV011PresentationTest {
                                     NativeSportActions({ details++ }, { played++ }, {}, { played++ }, {}, { game, channel ->
                                         assertEquals(fixture, game); assertEquals(broadcastChannel, channel); played++
                                     }, { game -> assertEquals(fixture, game); manualChoices++ }, teams = { teamsOpened++ }), first, { entry = it }, { header.requestFocus() })
-                                TopDestination.VOD -> NativeVodLanding(NativeVodSnapshot(profile, if (populated) cards(MetadataType.MOVIE) else emptyList(),
-                                    if (populated) cards(MetadataType.TV) else emptyList(), if (populated) resumes else emptyList()), first, { entry = it },
-                                    { header.requestFocus() }, {}, { details++ }, { resumed = it.key })
+                                TopDestination.MOVIES -> NativeVodLanding(NativeVodSnapshot(profile, MetadataType.MOVIE,
+                                    if (populated) listOf(DiscoveryRow(DiscoveryKind.FAVORITES, cards(MetadataType.MOVIE)),
+                                        DiscoveryRow(DiscoveryKind.RECENT, cards(MetadataType.MOVIE).reversed())) else emptyList(), emptyList()),
+                                    first, { entry = it }, { header.requestFocus() }, { searched++ }, { shownAll++ }, { details++ }, { resumed = it.key })
+                                TopDestination.SERIES -> NativeVodLanding(NativeVodSnapshot(profile, MetadataType.TV,
+                                    if (populated) listOf(DiscoveryRow(DiscoveryKind.RECENT, cards(MetadataType.TV))) else emptyList(),
+                                    if (populated) resumes else emptyList()),
+                                    first, { entry = it }, { header.requestFocus() }, { searched++ }, { shownAll++ }, { details++ }, { resumed = it.key })
                                 else -> Unit
                             }
                         }
@@ -180,13 +187,13 @@ class NativeV011PresentationTest {
         compose.runOnIdle { entered = entry?.invoke() == true }
         if (!entered) compose.onNodeWithTag("top-${destination.name}").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus)
         compose.waitForIdle()
-        val focusedTag = when (destination) { TopDestination.HOME -> "fixture-matchday"; TopDestination.TV -> "fixture-tv-0"; TopDestination.SPORT -> if (populated) "sport-hero-action" else "sport-empty-action"; else -> "vod-movies-entry" }
+        val focusedTag = when (destination) { TopDestination.HOME -> "fixture-matchday"; TopDestination.TV -> "fixture-tv-0"; TopDestination.SPORT -> if (populated) "sport-hero-action" else "sport-empty-action"; TopDestination.MOVIES -> if (populated) "vod-FAVORITES:null-MOVIE:1" else "vod-search"; TopDestination.SERIES -> if (populated) "vod-resume-episode:1" else "vod-search"; else -> "vod-search" }
         compose.waitUntil(5000) { runCatching { compose.onNodeWithTag(focusedTag).assertIsFocused(); true }.getOrDefault(false) }
     }
     private fun captures(size: String, suffix: String) {
         mount()
         compose.waitUntil(10000) { val bitmap = instrumentation.uiAutomation.takeScreenshot(); val ok = bitmap.width == size.substringBefore('x').toInt(); bitmap.recycle(); ok }
-        for ((screen, name) in listOf(TopDestination.HOME to "home", TopDestination.TV to "tv", TopDestination.SPORT to "sport", TopDestination.VOD to "vod")) {
+        for ((screen, name) in listOf(TopDestination.HOME to "home", TopDestination.TV to "tv", TopDestination.SPORT to "sport", TopDestination.MOVIES to "movies", TopDestination.SERIES to "series")) {
             enter(screen)
             val dir = File(compose.activity.getExternalFilesDir(null), "v04-screenshots").apply { mkdirs() }
             val bitmap = instrumentation.uiAutomation.takeScreenshot()
@@ -231,14 +238,27 @@ class NativeV011PresentationTest {
     @Test fun automaticBroadcastCardPlaysOnlyUniqueSourceAt1080() { automaticBroadcastCard("1920x1080") }
     @Test fun automaticBroadcastCardPlaysOnlyUniqueSourceAt720() { automaticBroadcastCard("1280x720") }
     @Test fun filmSeriesRowsUseDirectionalEntryDetailsAndExactResume() {
-        mount(); enter(TopDestination.VOD)
-        compose.onNodeWithTag("vod-movies-entry").assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-series-entry").assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("vod-series-TV:1").assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-movie-MOVIE:1").assertIsFocused()
+        // Film tab: rows only. ▲▼ keep the column, OK opens details, a list row ends in "Show all".
+        mount(); enter(TopDestination.MOVIES)
+        compose.onNodeWithTag("vod-FAVORITES:null-MOVIE:1").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-RECENT:null-MOVIE:3").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("vod-RECENT:null-MOVIE:2").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-FAVORITES:null-MOVIE:2").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER); assertEquals(1, details); assertEquals(0, played); assertNull(resumed)
-        press(KeyEvent.KEYCODE_DPAD_DOWN); press(KeyEvent.KEYCODE_DPAD_DOWN); press(KeyEvent.KEYCODE_DPAD_CENTER)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT); press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithTag("vod-FAVORITES:null-all").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER); assertEquals(1, shownAll); assertEquals(1, details)
+        // Rankings and recommendations are previews: no "Show all" there.
+        compose.onNodeWithTag("vod-RECENT:null-all").assertDoesNotExist()
+        // Serier tab: continue watching first, exact resume, ▲ from the first row returns to the header.
+        enter(TopDestination.SERIES)
+        compose.onNodeWithTag("vod-resume-episode:1").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT); press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertEquals("episode:2", resumed)
+        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-RECENT:null-TV:2").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-resume-episode:2").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("top-SERIES").assertIsFocused()
+        assertEquals(0, searched)
     }
     @Test fun sportEntryRowNavigationAndRemovedFixtureRestoreSafeFocus() {
         mount(); enter(TopDestination.SPORT)
@@ -449,14 +469,14 @@ class NativeV011PresentationTest {
     @Test fun homeMatchFirstActionsAt720() { matchFirstHome() }
 
     @Test fun settingsLeftReturnsToActiveCategoryAfterScrollingDetails() {
-        var selected by mutableIntStateOf(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal)
+        var selected by mutableIntStateOf(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal)
         lateinit var category: FocusRequester
         compose.setContent {
             MaterialTheme {
                 category = remember { FocusRequester() }
                 val content = remember { FocusRequester() }
                 tv.own.owntv.features.settings.StageSettingsPage(
-                    group = tv.own.owntv.features.shell.components.SettingsGroup.entries[selected].name, count = "", searchQuery = "", onSearchQuery = {},
+                    group = tv.own.owntv.features.shell.components.SettingsSection.entries[selected].name, count = "", searchQuery = "", onSearchQuery = {},
                     scroll = androidx.compose.foundation.rememberScrollState(), showSearch = false,
                     rowsFocus = content, rowsReturnFocus = category,
                     categories = { tv.own.owntv.features.shell.components.SettingsCategoryMenu(selected, { selected = it },
@@ -466,25 +486,25 @@ class NativeV011PresentationTest {
             }
         }
         compose.runOnIdle { category.requestFocus() }; compose.waitForIdle()
-        compose.onNodeWithTag("settings-group-APP").assertIsFocused().assertIsSelected()
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsFocused().assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_RIGHT); compose.onNodeWithTag("setting-0").assertIsFocused()
         repeat(6) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.onNodeWithTag("setting-6").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNodeWithTag("settings-group-APP").assertIsFocused()
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal, selected)
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsFocused()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal, selected)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         try {
             compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("setting-6").assertIsFocused(); true }.getOrDefault(false) }
         } catch (error: Throwable) { throw AssertionError(compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 10), error) }
         press(KeyEvent.KEYCODE_DPAD_LEFT); press(KeyEvent.KEYCODE_DPAD_UP)
-        compose.onNodeWithTag("settings-group-APP").assertIsSelected()
-        compose.onNodeWithTag("settings-group-WATCHING").assertIsFocused().assertIsNotSelected()
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.APP.ordinal, selected)
+        compose.onNodeWithTag("settings-section-SYSTEM").assertIsSelected()
+        compose.onNodeWithTag("settings-section-PLAYBACK").assertIsFocused().assertIsNotSelected()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.SYSTEM.ordinal, selected)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("setting-0").assertIsFocused(); true }.getOrDefault(false) }
-        assertEquals(tv.own.owntv.features.shell.components.SettingsGroup.WATCHING.ordinal, selected)
-        press(KeyEvent.KEYCODE_DPAD_LEFT); compose.onNodeWithTag("settings-group-WATCHING").assertIsFocused()
+        assertEquals(tv.own.owntv.features.shell.components.SettingsSection.PLAYBACK.ordinal, selected)
+        press(KeyEvent.KEYCODE_DPAD_LEFT); compose.onNodeWithTag("settings-section-PLAYBACK").assertIsFocused()
     }
     @Test fun homeGuideArrivalsAndMissingNextPreserveActionFocus() {
         var currentGuide by mutableStateOf(HomeGuideState(now, emptyMap()))
@@ -525,9 +545,11 @@ class NativeV011PresentationTest {
     }
     @Test fun fontScalingAt720KeepsBothEntriesAndSportsRowsReachable() {
         fontScale = 1.4f
-        mount(); enter(TopDestination.VOD)
-        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-series-entry").assertIsFocused().assertIsDisplayed()
-        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-movies-entry").assertIsFocused().assertIsDisplayed()
+        mount(); enter(TopDestination.MOVIES)
+        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-RECENT:null-MOVIE:3").assertIsFocused().assertIsDisplayed()
+        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-FAVORITES:null-MOVIE:1").assertIsFocused().assertIsDisplayed()
+        enter(TopDestination.SERIES)
+        compose.onNodeWithTag("vod-resume-episode:1").assertIsFocused().assertIsDisplayed()
         enter(TopDestination.SPORT)
         press(KeyEvent.KEYCODE_DPAD_RIGHT); press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithTag("sport-hero-teams").assertIsFocused().assertIsDisplayed()
@@ -571,18 +593,21 @@ class NativeV011PresentationTest {
         compose.runOnIdle { assertEquals(1, launches) }
     }
     @Test fun emptyProfileKeepsBothVodEntriesReachableWithoutLeakingTitles() {
-        mount(); enter(TopDestination.VOD)
+        mount(); enter(TopDestination.MOVIES)
         compose.runOnIdle { populated = false; profile = 8 }
         compose.waitForIdle(); compose.runOnIdle { entry?.invoke() }; compose.waitForIdle()
-        compose.onNodeWithTag("vod-movie-MOVIE:1").assertDoesNotExist()
-        compose.onNodeWithTag("vod-movies-entry").assertIsFocused()
+        compose.onNodeWithTag("vod-FAVORITES:null-MOVIE:1").assertDoesNotExist()
+        compose.onNodeWithTag("vod-search").assertIsFocused()
         // The fixture overrides density: compare pixels, not dp values from different owners.
-        val entryBounds = compose.onNodeWithTag("vod-movies-entry").fetchSemanticsNode()
+        val entryBounds = compose.onNodeWithTag("vod-search").fetchSemanticsNode()
         val rootBounds = compose.onRoot().fetchSemanticsNode().boundsInRoot
         assertTrue("Entry must retain both TV-safe gutters: ${entryBounds.positionInRoot} / ${entryBounds.size} in $rootBounds",
             entryBounds.positionInRoot.x > rootBounds.left && entryBounds.positionInRoot.x + entryBounds.size.width < rootBounds.right)
-        press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-series-entry").assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-movies-entry").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER); assertEquals(1, searched)
+        press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("top-MOVIES").assertIsFocused()
+        enter(TopDestination.SERIES)
+        compose.onNodeWithTag("vod-resume-episode:1").assertDoesNotExist()
+        compose.onNodeWithTag("vod-search").assertIsFocused()
         enter(TopDestination.SPORT)
         compose.runOnIdle { channelsLoading = true }
         compose.onNodeWithText("Inga hockeykanaler har identifierats", substring = true).assertDoesNotExist()

@@ -115,7 +115,11 @@ class PerformanceJourneyTest {
         when (destination) {
             "HOME" -> { waitTag("smart-channel-svt1"); waitTag("smart-hero-play") }
             "TV" -> waitTag("swedish-channel-svt1")
-            "VOD" -> waitTag("vod-series-entry")
+            // Search when the dataset syncs no movies or series; otherwise the tab's first rows.
+            "MOVIES", "SERIES" -> compose.waitUntil(20_000) { compose.onAllNodes(SemanticsMatcher("Film/Serier content") {
+                it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                    it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("vod-")
+            }).fetchSemanticsNodes().isNotEmpty() }
             "PROFILE" -> waitTag("settings-categories")
         }
     }
@@ -136,7 +140,7 @@ class PerformanceJourneyTest {
         val intent = app.packageManager.getLeanbackLaunchIntentForPackage(app.packageName)!!
         ActivityScenario.launch<MainActivity>(intent).use { scenario ->
             chooseSyntheticProfile(); ready("HOME")
-            for (destination in listOf("HOME", "TV", "SPORT", "VOD", "PROFILE")) {
+            for (destination in listOf("HOME", "TV", "SPORT", "MOVIES", "SERIES", "PROFILE")) {
                 focus("top-$destination"); press(KeyEvent.KEYCODE_DPAD_CENTER); ready(destination)
                 capture(scenario, destination)
             }
@@ -194,7 +198,7 @@ class PerformanceJourneyTest {
                 val intent = app.packageManager.getLeanbackLaunchIntentForPackage(app.packageName)!!
                 ActivityScenario.launch<MainActivity>(intent).use { scenario ->
                     chooseSyntheticProfile(); waitTag("smart-channel-svt1")
-                    for (destination in listOf("HOME", "TV", "SPORT", "VOD", "PROFILE")) {
+                    for (destination in listOf("HOME", "TV", "SPORT", "MOVIES", "SERIES", "PROFILE")) {
                         focus("top-$destination"); press(KeyEvent.KEYCODE_DPAD_CENTER)
                         if (destination == "HOME") {
                             waitTag("smart-channel-svt1")
@@ -349,6 +353,13 @@ class PerformanceJourneyTest {
                     // Reach Explore the way a remote does (Down into the hero, then Right), as the startup
                     // regression does; a semantic focus request from the header no longer sticks here.
                     press(KeyEvent.KEYCODE_DPAD_DOWN)
+                    // Content entry is asynchronous; a Right sent before focus arrives would move along the header.
+                    compose.waitUntil(5_000) { compose.onAllNodes(SemanticsMatcher("focused Sport content") {
+                        it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                            it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("sport-") &&
+                            it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Focused) &&
+                            it.config[androidx.compose.ui.semantics.SemanticsProperties.Focused]
+                    }).fetchSemanticsNodes().isNotEmpty() }
                     repeat(4) {
                         if (runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false)) return@repeat
                         press(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -498,15 +509,15 @@ class PerformanceJourneyTest {
             memory += pss()
             // Two unreported warmups, then 20 identical cycles. No provider playback or fabricated TTFF.
             repeat(22) { iteration ->
-                for (destination in listOf("TV", "SPORT", "VOD", "PROFILE", "HOME")) {
+                for (destination in listOf("TV", "SPORT", "MOVIES", "SERIES", "PROFILE", "HOME")) {
                     focus("top-$destination")
                     val action = { press(KeyEvent.KEYCODE_DPAD_CENTER); ready(destination) }
                     if (iteration < 2) action() else measure("enter_${destination.lowercase()}_ms", action)
-                    if (destination == "VOD") {
-                        focus("vod-movies-entry")
+                    if (destination == "MOVIES") {
+                        focus("vod-search")
                         val content: () -> Unit = {
-                            press(KeyEvent.KEYCODE_DPAD_DOWN); compose.onNodeWithTag("vod-series-entry").assertIsFocused()
-                            press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("vod-movies-entry").assertIsFocused()
+                            press(KeyEvent.KEYCODE_DPAD_UP); compose.onNodeWithTag("top-MOVIES").assertIsFocused()
+                            press(KeyEvent.KEYCODE_DPAD_DOWN); compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("vod-search").assertIsFocused(); true }.getOrDefault(false) }
                         }
                         if (iteration < 2) content() else measure("vod_content_down_up_ms", content)
                     }

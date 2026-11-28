@@ -60,7 +60,7 @@ class NativeNavigationDeviceTest {
                 val manager = LocalFocusManager.current
                 var inHeader by remember { mutableStateOf(true) }
                 val playbackReturn = rememberSportPlaybackReturn(profile,
-                    nativeEntry(active, MainSection.entries.toSet(), MainSection.MOVIES)!!, active.takeIf { it == TopDestination.SPORT })
+                    nativeEntry(active, MainSection.entries.toSet())!!, active.takeIf { it == TopDestination.SPORT })
                 BackHandler {
                     if (fullscreen) {
                         playbackReturn.closed(true); fullscreen = false
@@ -86,7 +86,7 @@ class NativeNavigationDeviceTest {
                     NativeTopNavigation(active, header, { entryRequest = 0; active = it; activations++ }, {
                         active = it; activations++; entryRequest++
                     }, { inHeader = true })
-                    val section = nativeEntry(active, MainSection.entries.toSet(), MainSection.MOVIES)!!
+                    val section = nativeEntry(active, MainSection.entries.toSet())!!
                     holder.SaveableStateProvider(nativePageKey(profile, section, active)) {
                         val rows = rememberLazyListState()
                         var last by rememberSaveable { mutableIntStateOf(0) }
@@ -174,7 +174,7 @@ class NativeNavigationDeviceTest {
             compose.runOnIdle { assertEquals(destination, active) }
             if (destination != TopDestination.PROFILE) press(KeyEvent.KEYCODE_DPAD_RIGHT)
         }
-        compose.runOnIdle { assertEquals(5, activations) }
+        compose.runOnIdle { assertEquals(TopDestination.entries.size, activations) }
     }
     @Test fun downRestoresLastRowAcrossPageVisitsAndUpTargetsActiveHeader() {
         mount(); press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -244,10 +244,10 @@ class NativeNavigationDeviceTest {
             compose.onNodeWithTag("top-SPORT").assertIsFocused()
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
             compose.mainClock.advanceTimeByFrame(); compose.waitForIdle()
-            compose.onNodeWithTag("top-VOD").assertIsFocused()
+            compose.onNodeWithTag("top-MOVIES").assertIsFocused()
             compose.runOnIdle { available = true }
             compose.mainClock.advanceTimeBy(1_000); compose.waitForIdle()
-            compose.onNodeWithTag("top-VOD").assertIsFocused()
+            compose.onNodeWithTag("top-MOVIES").assertIsFocused()
         } finally { compose.mainClock.autoAdvance = true }
     }
     @Test fun profileSwitchInvalidatesBookmarkAndEmptyDataKeepsHeaderReachable() {

@@ -28,3 +28,23 @@ internal enum class SettingsGroup(val titleRes: Int, val video: VideoGroup? = nu
         fun of(group: VideoGroup): SettingsGroup = entries.firstOrNull { it.video == group } ?: APP
     }
 }
+
+/**
+ * Min TV 0.21: the five sections the category column shows. Each is one page listing its groups' rows
+ * one after another under the group's heading — no extra level. [SettingsGroup] ordinals stay the
+ * stable deep-link and focus-restore identity; a section is only how they are presented.
+ */
+internal enum class SettingsSection(val titleRes: Int, val groups: List<SettingsGroup>) {
+    PROFILE(R.string.mintv_v021_section_profile, listOf(SettingsGroup.PROFILE, SettingsGroup.QUICK)),
+    SOURCES(R.string.mintv_v021_section_sources, listOf(SettingsGroup.SOURCES, SettingsGroup.CONTENT)),
+    LOOK(R.string.mintv_v021_section_look, listOf(SettingsGroup.APPEARANCE, SettingsGroup.LAYOUT)),
+    PLAYBACK(R.string.mintv_v021_section_playback, listOf(SettingsGroup.PLAYER, SettingsGroup.PICTURE,
+        SettingsGroup.SOUND, SettingsGroup.LIVE, SettingsGroup.WATCHING)),
+    SYSTEM(R.string.mintv_v021_section_system, listOf(SettingsGroup.SPORT, SettingsGroup.APP)),
+    ;
+
+    companion object {
+        fun of(group: SettingsGroup): SettingsSection = entries.first { group in it.groups }
+    }
+}
+
