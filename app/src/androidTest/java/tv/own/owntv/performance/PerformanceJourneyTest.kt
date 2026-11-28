@@ -279,7 +279,12 @@ class PerformanceJourneyTest {
                     }
                     repeat(5) { if (focusedSportChannel() < 0) press(KeyEvent.KEYCODE_DPAD_DOWN) }
                     val channelEntry = focusedSportChannel()
-                    check(channelEntry == 0 || channelEntry == 3) { "Unexpected synthetic Sport entry: $channelEntry" }
+                    check(channelEntry == 0 || channelEntry == 3) {
+                        // Diagnostics: where focus is and what Sport shows, in the log itself.
+                        val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
+                        "Unexpected synthetic Sport entry: $channelEntry\nFOCUSED: $focused\nTREE:\n" +
+                            runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 12) }.getOrDefault("").take(12_000)
+                    }
                     if (channelEntry != 3) repeat(3) { press(KeyEvent.KEYCODE_DPAD_RIGHT) }
                     hockeyCard(hockeyLabels[3]).assertIsFocused()
                     lateinit var vm: tv.own.owntv.features.live.LiveViewModel
@@ -364,7 +369,11 @@ class PerformanceJourneyTest {
                     // v0.20: the live channel row comes first when channels exist; the hero is the next row.
                     if (focusedSport("sport-live")) {
                         press(KeyEvent.KEYCODE_DPAD_DOWN)
-                        compose.waitUntil(5_000) { focusedSport("sport-hero") }
+                        try { compose.waitUntil(5_000) { focusedSport("sport-hero") } } catch (error: Throwable) {
+                            val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
+                            throw AssertionError("Hero not focused after Down\nFOCUSED: $focused\nTREE:\n" +
+                                runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 12) }.getOrDefault("").take(12_000), error)
+                        }
                     }
                     repeat(4) {
                         if (runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false)) return@repeat
