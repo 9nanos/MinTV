@@ -345,11 +345,15 @@ class PerformanceJourneyTest {
                 ActivityScenario.launch<MainActivity>(app.packageManager.getLeanbackLaunchIntentForPackage(app.packageName)!!).use { scenario ->
                     chooseSyntheticProfile(); waitTag("top-SPORT")
                     focus("top-SPORT"); press(KeyEvent.KEYCODE_DPAD_CENTER); ready("SPORT")
-                    waitTag("sport-hero-explore"); focus("sport-hero-explore");press(KeyEvent.KEYCODE_DPAD_CENTER)
+                    waitTag("sport-hero-explore"); focus("sport-hero-explore")
+                    try { compose.onNodeWithTag("sport-hero-explore").assertIsFocused() } catch (error: Throwable) {
+                        throw AssertionError("Explore did not take focus:\n" + compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 6).takeLast(6_000), error)
+                    }
+                    press(KeyEvent.KEYCODE_DPAD_CENTER)
                     try { waitTag("hub-back") } catch (error: Throwable) {
                         // Diagnostics: show where focus and content are when the hub does not open.
                         throw AssertionError("Sport hub did not open:\n" +
-                            compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 9).take(6_000), error)
+                            compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 5).take(8_000), error)
                     }
                     compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("hub-back").assertIsFocused(); true }.getOrDefault(false) }
                     capture(scenario,"SPORT_HUB_DISCOVERY")
