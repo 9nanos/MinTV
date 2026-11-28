@@ -2178,11 +2178,21 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsTeamScreen.kt	• – •
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsTeamScreen.kt	⌂
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SportsViewModel.kt	$startMs|$title
-2	empty	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	\0
+4	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	$it
 1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	+$it
 1	log	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	No Swedish hockey schedule for ${competition.id}
 1	log	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	No Swedish hockey table for ${competition.id}
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	aeiouyåäö
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	bk
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	ff
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	hc
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	hk
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	if
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	ik
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	is
+3	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	s
+1	technical	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	sk
 1	protocol	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	swe.allsvenskan
 1	protocol	app/src/main/java/tv/own/owntv/features/sports/SwedishHockeySource.kt	swe.shl
 2	empty	app/src/main/java/tv/own/owntv/features/subtitles/FolderSubtitleViewModel.kt	\0

@@ -146,9 +146,28 @@ internal class SwedishHockeySource(
         )
     }
 
-    private fun SwedishTeam.coreTeam() = Team(id, name)
+    private fun SwedishTeam.coreTeam() = Team(id, name, aliases = swedishTeamAliases(this))
 
     companion object {
+        /** Club-form words Swedish guides add or drop ("Leksands IF", "Färjestad BK", "Frölunda HC"). */
+        private val ClubWords = setOf("if", "bk", "hc", "ik", "hk", "sk", "is", "ff")
+
+        /**
+         * The names a Swedish guide may use for [team], for upstream channel matching: Min TV's known
+         * aliases (FBK, SAIK, LHF ...), the name without club words ("Leksand"), and with or without a
+         * genitive s ("Färjestad" / "Färjestads", "Leksands" / "Leksand"). Accents are folded by Core.
+         */
+        internal fun swedishTeamAliases(team: SwedishTeam): List<String> {
+            val known = SwedishCatalog.epgAliases(team).map { it.joinToString(" ") }
+            val base = tv.own.owntv.features.home.teamTokens(team.name).filter { it.isNotEmpty() && it !in ClubWords }
+            val core = base.joinToString(" ")
+            val genitive = base.singleOrNull()?.let { word ->
+                if (word.endsWith("s") && word.length > 5 && word[word.length - 2] !in "aeiouyåäö") listOf(word.dropLast(1))
+                else if (!word.endsWith("s")) listOf(word + "s") else emptyList()
+            }.orEmpty()
+            return (known + core + genitive).filter { it.isNotBlank() && it != team.name.lowercase() }.distinct()
+        }
+
         const val SHL_SLUG = "swe.shl"
         const val ALLSVENSKAN_SLUG = "swe.allsvenskan"
         private const val FRESH_MS = 30 * 60_000L

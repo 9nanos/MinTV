@@ -129,4 +129,21 @@ class SwedishHockeySourceTest {
         assertEquals(before + 2, Espn.calls)
         assertTrue(source.teams(shl).any { it.id == SportsCatalog.farjestadId })
     }
+
+    private fun foundIn(teamName: String, title: String): Boolean {
+        val team = SportsCatalog.identity(teamName, tv.own.owntv.features.home.Sport.ICE_HOCKEY)!!
+        val core = Team(team.id, team.name, aliases = SwedishHockeySource.swedishTeamAliases(team))
+        return tv.own.owntv.core.sports.TeamNames.keyOf(core).foundIn(tv.own.owntv.core.sports.TeamNames.tokens(title).toSet())
+    }
+
+    @Test fun `guide spellings of a Swedish club all find the same team`() {
+        for (title in listOf("Hockey: Färjestad - Skellefteå", "SHL: Färjestads BK – Frölunda HC", "FBK - LHF", "Farjestad vs Brynas", "Färjestad BK"))
+            assertTrue(title, foundIn("Färjestad BK", title))
+        assertTrue(foundIn("Leksands IF", "Hockeyallsvenskan: Leksand - AIK"))
+        assertTrue(foundIn("Leksands IF", "Leksands IF - Modo"))
+        assertTrue(foundIn("Frölunda HC", "Frolunda - Lulea"))
+        assertTrue(foundIn("Skellefteå AIK", "SAIK - Rögle"))
+        assertTrue(!foundIn("Färjestad BK", "Frölunda HC - Luleå HF"))
+        assertTrue(foundIn("HV 71", "HV71 - Frölunda"))
+    }
 }
