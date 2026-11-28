@@ -172,6 +172,10 @@ class NativeSportHubTest {
         compose.onNodeWithTag("sport-live-502").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
+        // Entering again from the header lands on the first live channel, not the remembered hero card.
+        compose.runOnIdle { assertTrue(entry?.invoke() == true) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("sport-live-501").assertIsFocused()
     }
     @Test fun mainSportShowsFollowedPublicLeagueAndRevocationRemovesOnlyItsMatches() {
         run {

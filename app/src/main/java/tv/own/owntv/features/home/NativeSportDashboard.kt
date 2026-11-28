@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -94,7 +96,15 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
         if (upcoming.isNotEmpty()) add(NativeRow("sport-upcoming", upcoming.take(12).map { "sport-upcoming-${it.id}" }))
         if (data.publicSourceUsed) add(NativeRow("sport-attribution", listOf("sport-attribution-link"), horizontalRail = false))
     }
-    val nav = rememberNativeRowsNavigation(rows, data.profile, first, onEntry, onHeader)
+    // v0.20: entering Sport from the header lands on the first live sports channel whenever that row
+    // exists, not on a card remembered from a visit made before the channels had loaded. Returns from
+    // playback and from the hub use their own entries and still restore the exact card.
+    val hasLive = live.isNotEmpty()
+    val currentHasLive by rememberUpdatedState(hasLive)
+    val liveFirstEntry: ((() -> Boolean)?) -> Unit = remember(onEntry, first) { { restore ->
+        onEntry(restore?.let { fallback -> { (currentHasLive && first.requestSafely()) || fallback() } })
+    } }
+    val nav = rememberNativeRowsNavigation(rows, data.profile, first, liveFirstEntry, onHeader)
     BoxWithConstraints(modifier.fillMaxSize().background(DesignLabBackground)) {
         val width = (maxWidth - 128.mpx - 54.mpx) / 4
         LazyColumn(state = nav.list, contentPadding = PaddingValues(horizontal = 64.mpx, vertical = 28.mpx),
