@@ -117,7 +117,8 @@ class PerformanceJourneyTest {
             "TV" -> waitTag("swedish-channel-svt1")
             // Search when the dataset syncs no movies or series; otherwise the tab's first rows.
             "MOVIES", "SERIES" -> compose.waitUntil(20_000) { compose.onAllNodes(SemanticsMatcher("Film/Serier content") {
-                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("vod-") == true
+                it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.TestTag) &&
+                    it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith("vod-")
             }).fetchSemanticsNodes().isNotEmpty() }
             "PROFILE" -> waitTag("settings-categories")
         }

@@ -33,11 +33,8 @@ class SettingsSearchCoverageTest {
         source.substring(from, to)
     }
 
-    /**
-     * Tabs deliberately absent from search. Backup and Local sync live under ⋯ More, not Settings, and
-     * the code says so: a result that lands somewhere the row is not is worse than no result.
-     */
-    private val notSearchable = setOf("ROOT", "BACKUP", "LOCAL_SYNC")
+    /** Tabs deliberately absent from search. Min TV 0.21 moved Backup and Local sync into Settings, so they are searchable. */
+    private val notSearchable = setOf("ROOT")
 
     @Test
     fun `every settings screen can be found by search`() {

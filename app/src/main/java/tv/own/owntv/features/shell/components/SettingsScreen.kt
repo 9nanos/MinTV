@@ -1170,8 +1170,14 @@ fun SettingsScreen(
                 chip = startupLabel(startupMode)) { saveScroll(); dialogReturn = searchFieldFocus; showStartup = true },
             *autoStartSearchEntries(autoStart).toTypedArray(),
             *tv.own.owntv.features.settings.lock.settingsLockSearchEntries(settingsLock, settingsLockVm) { saveScroll(); dialogReturn = searchFieldFocus }.toTypedArray(),
-            SettingsSearchEntry(stringResource(R.string.settings_group_app), stringResource(R.string.mintv_update_about), stringResource(R.string.settings_search_keywords_updates), OwnTVIcon.REFRESH, TileTone.PRIMARY,
+            SettingsSearchEntry(stringResource(R.string.mintv_v021_section_profile), stringResource(R.string.mintv_v021_update_app), stringResource(R.string.settings_search_keywords_updates), OwnTVIcon.REFRESH, TileTone.PRIMARY,
                 chip = "v${tv.own.owntv.BuildConfig.VERSION_NAME}") { saveScroll(); dialogReturn = searchFieldFocus; showUpdate = true },
+            // Min TV 0.21: the former Library page's system pages.
+            SettingsSearchEntry(stringResource(R.string.mintv_v021_section_system), stringResource(R.string.settings_backup_restore), stringResource(R.string.settings_backup_restore), OwnTVIcon.DOWNLOADS, TileTone.SECONDARY) { open(SettingsTab.BACKUP) },
+            SettingsSearchEntry(stringResource(R.string.mintv_v021_section_system), stringResource(R.string.local_sync_title), stringResource(R.string.local_sync_title), OwnTVIcon.PHONE, TileTone.SECONDARY) { open(SettingsTab.LOCAL_SYNC) },
+            SettingsSearchEntry(stringResource(R.string.mintv_v021_section_system), stringResource(R.string.settings_playback_error_log), stringResource(R.string.settings_playback_error_log), OwnTVIcon.WARNING, TileTone.SECONDARY) { open(SettingsTab.ERROR_LOG) },
+            SettingsSearchEntry(stringResource(R.string.mintv_v021_section_system), stringResource(R.string.settings_about), stringResource(R.string.settings_about), OwnTVIcon.INFO, TileTone.SECONDARY) { open(SettingsTab.ABOUT) },
+            *listOfNotNull(if (tv.own.owntv.BuildConfig.DEV_TOOLS) SettingsSearchEntry(stringResource(R.string.mintv_v021_section_system), stringResource(R.string.mintv_v021_developer), stringResource(R.string.mintv_v021_developer), OwnTVIcon.GEAR, TileTone.SECONDARY) { open(SettingsTab.DEVELOPER) } else null).toTypedArray(),
             SettingsSearchEntry(stringResource(R.string.settings_group_app), stringResource(R.string.settings_update_startup), stringResource(R.string.settings_search_keywords_update_auto), OwnTVIcon.REFRESH, TileTone.SECONDARY,
                 chip = if (updateCheckOnStart) stringResource(R.string.common_on) else stringResource(R.string.common_off), chipTone = if (updateCheckOnStart) TileTone.PRIMARY else TileTone.SECONDARY, showChevron = false) { settingsVm.setUpdateCheckOnStart(!updateCheckOnStart) },
         )
