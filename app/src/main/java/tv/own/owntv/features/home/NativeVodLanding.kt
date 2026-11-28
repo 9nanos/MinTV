@@ -44,7 +44,8 @@ internal fun NativeVodLanding(data: NativeVodSnapshot, first: FocusRequester, on
     val resumes = data.resumes.take(6)
     val empty = resumes.isEmpty() && data.rows.isEmpty()
     val rows = buildList {
-        if (empty) add(NativeRow(VOD_SEARCH_KEY, listOf(VOD_SEARCH_KEY)))
+        // Not a horizontal rail: an unattached LazyListState would make the row navigation wait for a first layout forever.
+        if (empty) add(NativeRow(VOD_SEARCH_KEY, listOf(VOD_SEARCH_KEY), horizontalRail = false))
         if (resumes.isNotEmpty()) add(NativeRow("vod-continue", resumes.map { "vod-resume-${it.key}" }))
         data.rows.forEach { row ->
             add(NativeRow(vodRowId(row), row.cards.map { vodCardKey(row, it) } + listOfNotNull(vodAllKey(row).takeIf { row.opensAll() })))
