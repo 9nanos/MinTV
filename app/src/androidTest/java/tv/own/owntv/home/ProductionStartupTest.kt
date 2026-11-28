@@ -568,6 +568,18 @@ class ProductionStartupTest {
                 compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("sources").assertIsFocused(); true }.getOrDefault(false) }
                 press(KeyEvent.KEYCODE_BACK)
                 compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false) }
+                // 0.20 one Sport: scores/calendar/leagues open inside Sport, and Back returns to the same action.
+                press(KeyEvent.KEYCODE_DPAD_RIGHT)
+                compose.onNodeWithTag("sport-hero-scores").assertIsFocused().assertIsDisplayed()
+                press(KeyEvent.KEYCODE_DPAD_CENTER)
+                compose.waitUntil(5_000) { compose.onAllNodesWithTag("sport-scores").fetchSemanticsNodes().size == 1 }
+                nativeCapture("sport-scores")
+                compose.onNodeWithTag("top-SPORT").assertIsSelected()
+                press(KeyEvent.KEYCODE_BACK)
+                compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("sport-hero-scores").assertIsFocused(); true }.getOrDefault(false) }
+                compose.onNodeWithTag("sport-scores").assertDoesNotExist()
+                press(KeyEvent.KEYCODE_DPAD_LEFT)
+                compose.onNodeWithTag("sport-hero-explore").assertIsFocused()
                 press(KeyEvent.KEYCODE_DPAD_LEFT)
                 compose.onNodeWithTag("sport-hero-teams").assertIsFocused()
                 press(KeyEvent.KEYCODE_DPAD_LEFT)

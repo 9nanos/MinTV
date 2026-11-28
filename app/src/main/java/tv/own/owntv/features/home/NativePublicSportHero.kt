@@ -18,7 +18,8 @@ import java.time.Instant
 /** NHL/football/etc use the same first-class hero, never an unrelated SHL setup message. */
 @Composable
 internal fun NativePublicSportHero(value: HubOverviewMatch?, teams: List<HubFollow>, preferences: SportPreferences,
-    now: Long, nav: NativeRowsNavigation, onMatch: ((HubMatch) -> Unit)?, onMine: (() -> Unit)?, onExplore: (() -> Unit)?) {
+    now: Long, nav: NativeRowsNavigation, onMatch: ((HubMatch) -> Unit)?, onMine: (() -> Unit)?, onExplore: (() -> Unit)?,
+    onScores: (() -> Unit)? = null) {
     val game=value?.match
     val league=game?.league?.let(HubLeagues::find)
     Row(Modifier.fillMaxWidth().heightIn(min=268.mpx).clip(RoundedCornerShape(20.mpx)).neutralArtwork().padding(26.mpx).testTag("sport-public-hero"),
@@ -39,6 +40,7 @@ internal fun NativePublicSportHero(value: HubOverviewMatch?, teams: List<HubFoll
                     { if (game != null) onMatch?.invoke(game) else onMine?.invoke() },nav.item("sport-hero-action").testTag("sport-hero-action"),primary=true)
                 if (game != null) SmartAction(stringResource(R.string.hub_my_teams),{onMine?.invoke()},nav.item("sport-hero-teams").testTag("sport-hero-teams"),compact=true)
                 onExplore?.let { SmartAction(stringResource(R.string.hub_explore),it,nav.item("sport-hero-explore").testTag("sport-hero-explore"),compact=true) }
+                onScores?.let { SmartAction(stringResource(R.string.mintv_sport_scores),it,nav.item("sport-hero-scores").testTag("sport-hero-scores"),compact=true) }
             }
         }
     }

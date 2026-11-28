@@ -46,6 +46,30 @@ Brief: [v020-tv-first-codex-brief.md](v020-tv-first-codex-brief.md). Base: PR #4
 - Local: i18n number-locale, text-overflow and literal-inventory checks pass. Kotlin/Android build and
   instrumentation run in GitHub Actions only (no Android SDK in the authoring environment).
 
+## M2 step 1 — One Sport entry (this PR)
+
+### Root cause
+Sport was three separate UIs under one top tab: Min TV's dashboard, Min TV's Explore hub, and the
+upstream OwnTV Sports section (scores, calendar, leagues, match and team pages). The upstream section
+was a page of its own (`MainSection.SPORTS`), reached from Settings → My teams and from the player's
+match button, with a different header and no way Back to the Sport start.
+
+### Direction (owner decision)
+Upstream Sports is the base for scores, calendar, leagues and match→channel matching. Min TV's hub
+stays only for what upstream lacks: Swedish hockey (SHL, HockeyAllsvenskan) and the public-source
+consent. Next step: bring SHL/HA into the upstream engine so the hub can be retired.
+
+### Changes
+- The upstream section now opens **inside** the Sport destination (`NativeSportScreen`). The shell no
+  longer has a separate `SportsScreen` page; every `MainSection.SPORTS` request lands in Sport.
+- New **Resultat & kalender** action on the Sport hero (after Explore) opens it; focus moves into it.
+  Back from its first page returns to the same action. Its own pages keep their Back behaviour.
+- Settings → My teams and the player's match button open the requested team/match inside Sport.
+
+### Tests
+- `ProductionStartupTest`: Sport → Resultat & kalender opens the section with the Sport tab still
+  selected, Back returns focus to the action. App unit tests for shell/home/sports pass locally (283).
+
 ### Not done yet (M2–M4)
 Unified hub/calendar/My teams, sport filters, ranked Watch Match fallback, performance before/after on
 the 12k synthetic library, 720p/1080p screenshots review, Swedish release notes for a QA proposal.

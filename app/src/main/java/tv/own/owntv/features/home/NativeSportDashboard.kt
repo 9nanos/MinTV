@@ -60,7 +60,7 @@ internal class NativeSportActions(val details: (SportFixture) -> Unit, val chann
 internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSportActions, first: FocusRequester,
     onEntry: ((() -> Boolean)?) -> Unit, onHeader: () -> Unit, modifier: Modifier = Modifier, onExplore: (() -> Unit)? = null,
     hubReads: Map<String,HubRead> = emptyMap(), onHubTeam: ((HubFollow) -> Unit)? = null, onHubMatch: ((HubMatch) -> Unit)? = null,
-    onHubMine: (() -> Unit)? = null) {
+    onHubMine: (() -> Unit)? = null, onScores: (() -> Unit)? = null) {
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     // The featured scheduled fixture already has its own primary/detail actions.
     val featured = data.hero?.takeIf { it.status == MatchStatus.SCHEDULED }?.id
@@ -80,7 +80,8 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
         if (live.isNotEmpty()) add(NativeRow("sport-live", live.map { "sport-live-${it.id}" } + "sport-live-all"))
         add(NativeRow("sport-hero", (if (personalHero) listOf("sport-hero-action") + if (publicHero != null) listOf("sport-hero-teams") else emptyList()
             else if (data.hero != null) listOf("sport-hero-action", "sport-hero-details", "sport-hero-teams")
-            else listOf("sport-empty-action", "sport-hero-teams")) + if (onExplore != null) listOf("sport-hero-explore") else emptyList(), horizontalRail = false))
+            else listOf("sport-empty-action", "sport-hero-teams")) + (if (onExplore != null) listOf("sport-hero-explore") else emptyList()) +
+            (if (onScores != null) listOf("sport-hero-scores") else emptyList()), horizontalRail = false))
         if (mineItems.isNotEmpty()) add(NativeRow("sport-mine", mineItems.map { "sport-mine-${it.key}" }))
         if (followed.isNotEmpty()) add(NativeRow("sport-followed", followed.map { "sport-followed-${it.id}" }))
         if (today.isNotEmpty()) add(NativeRow("sport-today", today.take(16).map { "sport-today-${it.id}" }))
@@ -117,7 +118,7 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
             item(key = "sport-hero") {
                 Column(verticalArrangement = Arrangement.spacedBy(16.mpx)) {
                     if (live.isEmpty()) TvText(stringResource(R.string.mintv_nav_sport), size = 34, bold = true)
-                    if (personalHero) NativePublicSportHero(publicHero,followed,data.preferences,data.now,nav,onHubMatch,onHubMine,onExplore)
+                    if (personalHero) NativePublicSportHero(publicHero,followed,data.preferences,data.now,nav,onHubMatch,onHubMine,onExplore,onScores)
                     else
                     Row(Modifier.fillMaxWidth().heightIn(min = if (data.hero != null) 268.mpx else 120.mpx).clip(RoundedCornerShape(20.mpx)).neutralArtwork().padding(26.mpx),
                         horizontalArrangement = Arrangement.spacedBy(32.mpx), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -156,6 +157,8 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
                                         nav.item("sport-hero-teams").testTag("sport-hero-teams"), compact = true)
                                     onExplore?.let { SmartAction(stringResource(R.string.hub_explore), it,
                                         nav.item("sport-hero-explore").testTag("sport-hero-explore"), compact = true) }
+                                    onScores?.let { SmartAction(stringResource(R.string.mintv_sport_scores), it,
+                                        nav.item("sport-hero-scores").testTag("sport-hero-scores"), compact = true) }
                                 }
                                 if (data.heroChannel != null) TvText(stringResource(R.string.v016_sport_hold_channel), size = 17, color = MinTvMuted, lines = 2)
                             } ?: Row(horizontalArrangement = Arrangement.spacedBy(12.mpx), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -168,6 +171,8 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
                                     nav.item("sport-hero-teams").testTag("sport-hero-teams"), compact = true)
                                 onExplore?.let { SmartAction(stringResource(R.string.hub_explore), it,
                                     nav.item("sport-hero-explore").testTag("sport-hero-explore"), compact = true) }
+                                onScores?.let { SmartAction(stringResource(R.string.mintv_sport_scores), it,
+                                    nav.item("sport-hero-scores").testTag("sport-hero-scores"), compact = true) }
                             }
                         }
                     }

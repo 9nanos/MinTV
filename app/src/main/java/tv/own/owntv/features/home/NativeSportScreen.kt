@@ -2,6 +2,7 @@ package tv.own.owntv.features.home
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -10,6 +11,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import tv.own.owntv.R
@@ -18,6 +20,9 @@ import tv.own.owntv.features.live.LiveViewModel
 import tv.own.owntv.ui.theme.mpx
 import tv.own.owntv.features.sporthub.SportHubScreen
 import tv.own.owntv.features.sporthub.*
+import tv.own.owntv.features.sports.SportsPlayback
+import tv.own.owntv.features.sports.SportsScreen
+import org.koin.compose.koinInject
 
 /** A new destination composed from the existing singleton-backed companions, not new repositories. */
 @Composable
@@ -40,24 +45,46 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
     var hubOpen by rememberSaveable(profileId) { mutableStateOf(false) }
     var hubRoute by rememberSaveable(profileId) { mutableStateOf(HubRoute(HubPage.DISCOVER).key) }
     val hubReads by HubSessionSnapshots.reads.collectAsStateWithLifecycle()
+    // 0.20: one Sport. The upstream Sports section (scores, calendar, leagues and their match/team pages)
+    // opens inside this destination, from "Resultat & kalender" or from Settings / the player, and Back
+    // from its first page returns here. Explore still opens the hub: Swedish hockey (SHL,
+    // HockeyAllsvenskan) and the public-source consent live only there until upstream covers them.
+    val sportsPlayback = koinInject<SportsPlayback>()
+    val pendingTeam by sportsPlayback.pendingTeam.collectAsStateWithLifecycle()
+    val pendingMatch by sportsPlayback.pendingMatch.collectAsStateWithLifecycle()
+    var sportsOpen by rememberSaveable(profileId) { mutableStateOf(false) }
+    var sportsEntry by remember(profileId) { mutableStateOf<(() -> Boolean)?>(null) }
+    var focusSports by remember(profileId) { mutableStateOf(false) }
+    LaunchedEffect(pendingTeam, pendingMatch) {
+        if (pendingTeam != null || pendingMatch != null) { hubOpen = false; sportsOpen = true; focusSports = true }
+    }
+    fun openSports() { restoreBase = false; hubOpen = false; sportsOpen = true; focusSports = true }
+    // The section draws over the dashboard: move remote focus onto it once its entry is known.
+    LaunchedEffect(focusSports, sportsOpen, usable, sportsEntry) {
+        if (focusSports && sportsOpen && usable && sportsEntry != null) {
+            repeat(2) { withFrameNanos { } }
+            if (sportsEntry?.invoke() == true) focusSports = false
+        }
+    }
     fun openHub(route: HubRoute) { restoreBase = false; hubRoute = route.key; hubOpen = true }
-    LaunchedEffect(restoreBase, usable, hubOpen, returnEntry) {
-        if (restoreBase && usable && !hubOpen && returnEntry != null) {
+    LaunchedEffect(restoreBase, usable, hubOpen, sportsOpen, returnEntry) {
+        if (restoreBase && usable && !hubOpen && !sportsOpen && returnEntry != null) {
             repeat(2) { withFrameNanos { } }
             if (returnEntry?.invoke() == true) restoreBase = false
         }
     }
-    DisposableEffect(profileId, hubOpen, baseEntry, hubEntry) {
-        onEntryHook(if (hubOpen) hubEntry else baseEntry)
+    DisposableEffect(profileId, hubOpen, sportsOpen, baseEntry, hubEntry, sportsEntry) {
+        onEntryHook(if (sportsOpen) sportsEntry else if (hubOpen) hubEntry else baseEntry)
         onDispose { onEntryHook(null) }
     }
     tv.own.owntv.features.shell.NativePlaybackContentEntry(restoreAfterPlayback, profileId.toString(),
-        if (hubOpen) hubReturnEntry else returnEntry, onHeader, onPlaybackReturnFinished)
+        if (sportsOpen) sportsEntry else if (hubOpen) hubReturnEntry else returnEntry, onHeader, onPlaybackReturnFinished)
     Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() }.focusGroup()) {
-        MinSportCompanion(true, usable && !hubOpen, liveVm, profileId, favorites, onPlay, 64.mpx, onSources,
+        MinSportCompanion(true, usable && !hubOpen && !sportsOpen, liveVm, profileId, favorites, onPlay, 64.mpx, onSources,
             reservedTop = 32.mpx, compact = false, onSettings = { onSettings(MinTvSettingsDestination.SPORT) },
             dashboard = { data, actions, first, entry -> NativeSportDashboard(data, actions, first, entry, onHeader,
                 onExplore = if (profileId != null) ({ openHub(HubRoute(HubPage.DISCOVER)) }) else null,
+                onScores = if (profileId != null) ({ openSports() }) else null,
                 hubReads = hubReads, onHubTeam = { openHub(HubRoute(HubPage.TEAM,it.league,it.id)) },
                 onHubMatch = { openHub(HubRoute(HubPage.MATCH,it.league,it.id)) }, onHubMine = { openHub(HubRoute(HubPage.MINE)) }) },
             onMatchcenterEntry = { baseEntry = it }, onPlaybackReturnEntry = { returnEntry = it }) { hockey, _ -> hockey() }
@@ -67,5 +94,12 @@ internal fun NativeSportScreen(liveVm: LiveViewModel, homeVm: HomeViewModel, pro
                 hubOpen = false
             }, { hubEntry = it }, onHeader, HubRoute.decode(hubRoute) ?: HubRoute(HubPage.DISCOVER),
             restoreAfterPlayback = restoreAfterPlayback, onPlaybackEntry = { hubReturnEntry = it })
+        if (sportsOpen && profileId != null) {
+            // Composed before SportsScreen, so its pages' own Back handlers take precedence over this one.
+            androidx.activity.compose.BackHandler(enabled = usable) { sportsOpen = false; focusSports = false; restoreBase = true }
+            SportsScreen(onPlayChannel = onPlay, onAddPlaylist = onSources, onChildFocused = onChildFocused,
+                onEntryHook = { sportsEntry = it }, contentStart = 64.mpx, active = usable,
+                modifier = Modifier.fillMaxSize().background(DesignLabBackground).testTag("sport-scores"))
+        }
     }
 }
