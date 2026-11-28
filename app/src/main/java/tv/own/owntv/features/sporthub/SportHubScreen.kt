@@ -47,8 +47,7 @@ import java.time.format.FormatStyle
 internal fun SportHubScreen(profileId: Long, active: Boolean, liveVm: LiveViewModel, favorites: List<ChannelEntity>,
     onPlay: (ChannelEntity, List<ChannelEntity>) -> Unit, onSettings: () -> Unit, onDismiss: () -> Unit,
     onEntry: ((() -> Boolean)?) -> Unit, onHeader: () -> Unit, initialRoute: HubRoute = HubRoute(HubPage.DISCOVER),
-    restoreAfterPlayback: Boolean = false, onPlaybackEntry: (((() -> Boolean)?) -> Unit)? = null,
-    onScores: (() -> Unit)? = null) {
+    restoreAfterPlayback: Boolean = false, onPlaybackEntry: (((() -> Boolean)?) -> Unit)? = null) {
     val store = koinInject<SportsPreferences>()
     val swedish = koinInject<SportsRepository>()
     val hockey = koinInject<ShlRepository>()
@@ -297,9 +296,7 @@ internal fun SportHubScreen(profileId: Long, active: Boolean, liveVm: LiveViewMo
         when (route.page) {
             HubPage.DISCOVER -> {
                 add(HubSection("discovery-controls", resources.getString(HubSport.valueOf(sportFilter).hubLabel()), listOf(
-                    tile("choose-sport", R.string.hub_sports, HubRoute(HubPage.SPORTS).key), tile("sources", R.string.hub_sources)) +
-                    // 0.20: scores, calendar and leagues of every other sport open from here, inside Sport.
-                    (if (onScores != null) listOf(tile("sport-scores-open", R.string.mintv_sport_scores)) else emptyList())))
+                    tile("choose-sport", R.string.hub_sports, HubRoute(HubPage.SPORTS).key), tile("sources", R.string.hub_sources))))
                 add(HubSection("leagues", resources.getString(R.string.hub_leagues), HubLeagues.reviewed.filter { it.sport.name == sportFilter }.map { l ->
                     HubTile("league-${l.key}", resources.getString(l.label), resources.getString(if (l.access in setOf(HubAccess.VERIFIED_PUBLIC, HubAccess.EXISTING_READER) && hubBindingCurrent(l,now))
                         R.string.hub_available else R.string.hub_unverified), HubRoute(HubPage.LEAGUE, l.key).key)
@@ -410,7 +407,6 @@ internal fun SportHubScreen(profileId: Long, active: Boolean, liveVm: LiveViewMo
             id == "hub-calendar" -> push(HubRoute(HubPage.CALENDAR, league?.key ?: HubLeagues.shl.key))
             id == "hub-mine" -> push(HubRoute(HubPage.MINE))
             id == "sources" -> push(HubRoute(HubPage.SOURCES))
-            id == "sport-scores-open" -> onScores?.invoke()
             id == "settings" -> onSettings()
             id == "retry" -> refresh++
             id.startsWith("sport/") -> { sportFilter = id.substringAfter('/'); hubPop(history)?.let { history = it } }
