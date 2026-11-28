@@ -22,6 +22,7 @@ internal fun topDestination(section: MainSection, sport: Boolean = false): TopDe
     MainSection.MOVIES, MainSection.SERIES -> TopDestination.VOD
     MainSection.DOWNLOADS, MainSection.SETTINGS, MainSection.MORE -> TopDestination.PROFILE
     MainSection.SEARCH -> TopDestination.TV // caller keeps its contextual parent while search is open
+    MainSection.SPORTS -> TopDestination.SPORT // upstream 5.2 Sports section lives under Min TV's Sport destination
 }
 
 /** New TV header is present even when pre-native navigation hid LIVE_TV but

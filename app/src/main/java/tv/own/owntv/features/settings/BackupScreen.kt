@@ -39,9 +39,7 @@ import tv.own.owntv.core.backup.BackupManager
 import tv.own.owntv.ui.components.BrowseMode
 import tv.own.owntv.ui.components.OwnTVIcon
 import tv.own.owntv.ui.components.OwnTVSpinner
-import tv.own.owntv.ui.components.OwnTVTextField
 import tv.own.owntv.ui.components.StorageBrowser
-import tv.own.owntv.ui.theme.OwnTVTheme
 import java.io.File
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.FlowRow
@@ -59,20 +57,19 @@ import tv.own.owntv.ui.theme.stageAccent
 import tv.own.owntv.ui.theme.stageText
 
 /**
- * Phase 12 — Backup & Restore (Settings → Backup), with selective sections: the user picks what to
+ * Backup & Restore (More → Backup & Restore), with selective sections: the user picks what to
  * back up (profiles & sources / customizations / favorites / history / resume) and, on restore,
  * which of the file's sections to apply. Uses an in-app file picker (no SAF).
  */
 @Composable
 fun BackupScreen(
-    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
     /** More › Backup & Restore: what OK / ▶ on the sheet focuses. Settings passes none and gets focus on open. */
     entry: FocusRequester? = null,
 ) {
     val vm: BackupViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
-    val colors = OwnTVTheme.colors
     // A restore can bring a different icon colour than the launcher shows: offer the restart.
     val restoredIcon by vm.restoredIcon.collectAsStateWithLifecycle()
     val appliedIcon = tv.own.owntv.ui.components.rememberAppliedIcon()
@@ -136,7 +133,8 @@ fun BackupScreen(
     var dialogReturn by remember { mutableStateOf<FocusRequester?>(null) }
     val anyDialogOpen = showBrowser || showExportPicker || showProfilePicker || pendingFolderBrowser || exportFolder != null ||
         showRemoteRestore || showRemoteExportPassword || showRemoteExport ||
-        state is BackupViewModel.State.ChooseRestore || state is BackupViewModel.State.NeedPassword
+        state is BackupViewModel.State.ChooseRestore || state is BackupViewModel.State.NeedPassword ||
+        state is BackupViewModel.State.ProfileClashes
     LaunchedEffect(anyDialogOpen) {
         if (!anyDialogOpen) {
             dialogReturn?.let { btn ->
@@ -160,7 +158,7 @@ fun BackupScreen(
         if (!working) { dialogReturn = from; exportToRemote = remote; vm.loadProfiles(); showProfilePicker = true }
     }
 
-    // P8-05: title, the last-backup card (amber "Never backed up" until there is one), Back up now and
+    // Title, the last-backup card (amber "Never backed up" until there is one), Back up now and
     // Restore, and what a backup holds.
     Column(
         modifier = modifier
@@ -187,7 +185,7 @@ fun BackupScreen(
                         Modifier
                             .background(StageColors.Warn.copy(alpha = 0.1f), cardShape)
                             .border(1.5.mpx, StageColors.Warn.copy(alpha = 0.35f), cardShape)
-                    } else Modifier.background(Color.White.copy(alpha = 0.05f), cardShape),
+                    } else Modifier.background(StageColors.Ink.copy(alpha = 0.05f), cardShape),
                 )
                 .padding(24.mpx),
             horizontalArrangement = Arrangement.spacedBy(20.mpx),
@@ -248,7 +246,7 @@ fun BackupScreen(
                     BackupTool(stringResource(R.string.settings_backup_remote), OwnTVIcon.NETWORK, Modifier.focusRequester(phoneFocus)) { startExport(true, phoneFocus) }
                 }
             }
-            // Restore: the same two ways as Back up now, as buttons on the card (owner, P12) — no chooser popup.
+            // Restore: the same two ways as Back up now, as buttons on the card — no chooser popup.
             var restoreFocused by remember { mutableStateOf(false) }
             val restoreRemoteFocus = remember { FocusRequester() }
             StageTile(
@@ -330,6 +328,7 @@ fun BackupScreen(
             ProfilePickerDialog(
                 profiles = choices.profiles,
                 activeId = choices.activeId,
+                protectedIds = choices.protectedIds,
                 verifyPin = vm::verifyPin,
                 onConfirm = { picked ->
                     exportProfiles = picked
@@ -395,6 +394,16 @@ fun BackupScreen(
         )
     }
 
+    // Profiles in the file named like ones here: Merge, Replace or Keep both, one at a time.
+    (state as? BackupViewModel.State.ProfileClashes)?.let { ask ->
+        RestoreClashStep(
+            ask = ask,
+            verify = vm::verifyPin,
+            onDone = { choices -> vm.import(ask.file, ask.sections, ask.password, ask.deviceSettings, choices) },
+            onCancel = vm::reset,
+        )
+    }
+
     // Restore password prompt. Two shapes, see BackupViewModel.State.NeedPassword:
     //  - sealed .own  → asked FIRST, mandatory; unlocking then reveals the section picker.
     //  - field-encrypted → asked after the section picker, optional (skip = no saved passwords).
@@ -434,7 +443,7 @@ fun BackupScreen(
 
     // Remote export: full-screen panel with PIN + QR while the file is served for download.
     if (showRemoteExport) {
-        Box(Modifier.fillMaxSize().background(colors.background)) {
+        Box(Modifier.fillMaxSize().background(tv.own.owntv.ui.theme.LocalStagePalette.current.page)) {
             RemoteBackupExportScreen(
                 state = remoteState,
                 preparing = state == BackupViewModel.State.Working,
@@ -449,7 +458,7 @@ fun BackupScreen(
     // Remote restore: full-screen companion panel (PIN + QR). An uploaded file feeds the normal
     // inspect → section-picker flow; the panel closes itself when a file arrives.
     if (showRemoteRestore) {
-        Box(Modifier.fillMaxSize().background(colors.background)) {
+        Box(Modifier.fillMaxSize().background(tv.own.owntv.ui.theme.LocalStagePalette.current.page)) {
             RemoteBackupRestoreScreen(
                 state = remoteState,
                 backups = vm.remoteBackups,
@@ -485,12 +494,13 @@ private fun BackupPasswordDialog(
             tv.own.owntv.ui.stage.StageButton(confirmLabel, onClick = { if (password.isNotBlank()) onConfirm(password) }, height = 56.mpx, textSize = 19, tinted = true)
         },
     ) {
-        OwnTVTextField(
+        tv.own.owntv.features.settings.StageFieldRow(
+            icon = tv.own.owntv.ui.components.OwnTVIcon.PENCIL,
+            label = stringResource(R.string.settings_backup_password),
             value = password,
             onValueChange = { password = it },
-            label = stringResource(R.string.settings_backup_password),
-            isPassword = true,
-            focusRequester = firstFocus,
+            modifier = Modifier.focusRequester(firstFocus),
+            password = true,
         )
     }
 }
@@ -511,7 +521,8 @@ private fun BackupPasswordDialog(
 private fun ProfilePickerDialog(
     profiles: List<tv.own.owntv.core.database.entity.ProfileEntity>,
     activeId: Long,
-    verifyPin: (tv.own.owntv.core.database.entity.ProfileEntity, String) -> Boolean,
+    protectedIds: Set<Long>,
+    verifyPin: suspend (tv.own.owntv.core.database.entity.ProfileEntity, String) -> tv.own.owntv.core.categorylock.PinAttempt,
     onConfirm: (Set<Long>) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -531,7 +542,7 @@ private fun ProfilePickerDialog(
         },
     ) {
         profiles.forEachIndexed { i, p ->
-            val locked = p.pinHash != null && p.id != activeId
+            val locked = p.id in protectedIds && p.id != activeId
             CheckRow(
                 label = if (p.id == activeId) stringResource(R.string.settings_backup_profile_current, p.name) else p.name,
                 desc = when {
@@ -552,49 +563,13 @@ private fun ProfilePickerDialog(
         }
     }
     pinFor?.let { profile ->
-        ProfilePinDialog(
+        tv.own.owntv.features.profiles.ProtectedProfilePinDialog(
             profileName = profile.name,
+            body = stringResource(R.string.settings_backup_profile_pin_description),
             verify = { pin -> verifyPin(profile, pin) },
             onUnlocked = { ticked = ticked + profile.id; pinFor = null },
             onDismiss = { pinFor = null },
         )
-    }
-}
-
-/** PIN prompt for including a locked, non-active profile in the backup. */
-@Composable
-private fun ProfilePinDialog(
-    profileName: String,
-    verify: (String) -> Boolean,
-    onUnlocked: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var pin by remember { mutableStateOf("") }
-    var wrong by remember { mutableStateOf(false) }
-    val fieldFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { fieldFocus.requestFocus() } }
-    tv.own.owntv.ui.stage.StagePopup(
-        onDismiss = onDismiss,
-        title = stringResource(R.string.settings_backup_profile_locked, profileName),
-        body = stringResource(R.string.settings_backup_profile_pin_description),
-        width = 760.mpx,
-        buttons = {
-            tv.own.owntv.ui.stage.StageButton(stringResource(R.string.common_cancel), onClick = onDismiss, height = 56.mpx, textSize = 19)
-            tv.own.owntv.ui.stage.StageButton(
-                stringResource(R.string.settings_backup_unlock),
-                onClick = { if (pin.isNotBlank()) { if (verify(pin)) onUnlocked() else { wrong = true; pin = "" } } },
-                height = 56.mpx, textSize = 19, tinted = true,
-            )
-        },
-    ) {
-        OwnTVTextField(
-            value = pin,
-            onValueChange = { pin = it; wrong = false },
-            label = stringResource(R.string.settings_backup_profile_pin),
-            isPassword = true,
-            focusRequester = fieldFocus,
-        )
-        if (wrong) Text(stringResource(R.string.settings_backup_pin_incorrect), style = stageText(17, 600), color = StageColors.Danger, modifier = Modifier.padding(top = 10.mpx))
     }
 }
 
@@ -640,6 +615,8 @@ internal fun SectionPickerDialog(
      * "Everything", which is about what the file holds, not about this device.
      */
     deviceSettings: MutableState<Boolean>? = null,
+    /** First-run restore: say so when Sources is unticked, because the device then has no playlists. */
+    warnWithoutSources: Boolean = false,
 ) {
     var selected by remember { mutableStateOf(initial) }
     val firstFocus = remember { FocusRequester() }
@@ -675,6 +652,14 @@ internal fun SectionPickerDialog(
                 desc = stringResource(R.string.settings_backup_device_settings_desc),
                 checked = deviceSettings.value,
                 onToggle = { deviceSettings.value = !deviceSettings.value },
+            )
+        }
+        if (warnWithoutSources && selected.isNotEmpty() && BackupManager.Section.SOURCES !in selected) {
+            Text(
+                stringResource(R.string.settings_backup_no_sources_warning),
+                style = stageText(17, 600),
+                color = StageColors.Warn,
+                modifier = Modifier.padding(top = 10.mpx),
             )
         }
     }

@@ -345,8 +345,23 @@ class PerformanceJourneyTest {
                 ActivityScenario.launch<MainActivity>(app.packageManager.getLeanbackLaunchIntentForPackage(app.packageName)!!).use { scenario ->
                     chooseSyntheticProfile(); waitTag("top-SPORT")
                     focus("top-SPORT"); press(KeyEvent.KEYCODE_DPAD_CENTER); ready("SPORT")
-                    waitTag("sport-hero-explore"); focus("sport-hero-explore");press(KeyEvent.KEYCODE_DPAD_CENTER)
-                    waitTag("hub-back")
+                    waitTag("sport-hero-explore")
+                    // Reach Explore the way a remote does (Down into the hero, then Right), as the startup
+                    // regression does; a semantic focus request from the header no longer sticks here.
+                    press(KeyEvent.KEYCODE_DPAD_DOWN)
+                    repeat(4) {
+                        if (runCatching { compose.onNodeWithTag("sport-hero-explore").assertIsFocused(); true }.getOrDefault(false)) return@repeat
+                        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+                    }
+                    try { compose.onNodeWithTag("sport-hero-explore").assertIsFocused() } catch (error: Throwable) {
+                        throw AssertionError("Explore not reachable with the remote", error)
+                    }
+                    press(KeyEvent.KEYCODE_DPAD_CENTER)
+                    try { waitTag("hub-back") } catch (error: Throwable) {
+                        // Diagnostics: show where focus and content are when the hub does not open.
+                        throw AssertionError("Sport hub did not open:\n" +
+                            compose.onRoot(useUnmergedTree = true).printToString(maxDepth = 5).take(8_000), error)
+                    }
                     compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("hub-back").assertIsFocused(); true }.getOrDefault(false) }
                     capture(scenario,"SPORT_HUB_DISCOVERY")
                     press(KeyEvent.KEYCODE_DPAD_DOWN);press(KeyEvent.KEYCODE_DPAD_RIGHT)

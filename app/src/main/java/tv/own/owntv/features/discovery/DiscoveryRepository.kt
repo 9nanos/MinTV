@@ -83,7 +83,8 @@ internal class DiscoveryRepository(private val db: OwnTVDatabase, private val se
             while (cursor.moveToNext()) seedGenres += genres(if (cursor.isNull(0)) null else cursor.getString(0))
         }
         val sourceNames = scopedSources.associateWith { db.sourceDao().getById(it)?.name.orEmpty() }
-        val explicitOrder = cust.categoryOrder.withIndex().associate { it.value to it.index }
+        // Core 1.0.72: hand-moved categories keep the position they were put at (categoryPositions).
+        val explicitOrder = cust.categoryPositions
         val folders = cats.filter { it.id !in forbidden }.sortedWith(
             compareBy<tv.own.owntv.core.database.entity.CategoryEntity> { explicitOrder[CustomizeKeys.category(it)] ?: Int.MAX_VALUE }
                 .thenBy { ProviderFolderOrder.priority(it.name, type) }.thenBy { scopedSources.indexOf(it.sourceId) }.thenBy { it.sortOrder }.thenBy { it.id })

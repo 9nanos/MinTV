@@ -3,7 +3,7 @@ package tv.own.owntv.player
 /** Observe actual Core outcomes; isPlaying/engine command dispatch is not decoded-picture proof. */
 internal class EntryDiagnosticEngines(private val delegate: LiveEngines, private val current: () -> Long,
     private val now: () -> Long = { android.os.SystemClock.elapsedRealtime() }) : LiveEngines by delegate {
-    override suspend fun watchExo(channelName: String, stillOurs: () -> Boolean, handOver: suspend (String) -> Unit,
+    override suspend fun watchExo(channelName: String, stillOurs: () -> Boolean, handOver: suspend (HandOver) -> Unit,
         onOpened: () -> Unit, postponeDeadline: (Long) -> Unit, log: (String) -> Unit) {
         val id = current()
         delegate.watchExo(channelName, stillOurs, handOver, {

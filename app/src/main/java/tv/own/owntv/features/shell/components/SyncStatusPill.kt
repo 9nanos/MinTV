@@ -40,8 +40,6 @@ import androidx.compose.ui.res.stringResource
 import tv.own.owntv.ui.components.OwnTVSpinner
 import tv.own.owntv.ui.components.compactCount
 import tv.own.owntv.ui.components.displayText
-import tv.own.owntv.ui.theme.OwnTVTheme
-import tv.own.owntv.ui.theme.glass
 
 /**
  * Unobtrusive "sync running" pill (shell overlay, bottom middle). Reflects BOTH catalog syncs (a
@@ -71,15 +69,29 @@ fun SyncStatusPill(modifier: Modifier = Modifier) {
     val activeRecordings by recordingTracker.active.collectAsStateWithLifecycle()
     val lastCompleted by catalogTracker.lastCompleted.collectAsStateWithLifecycle()
     val lastTrendingCompleted by trendingTracker.lastCompleted.collectAsStateWithLifecycle()
+    val sportsTracker: tv.own.owntv.core.sports.SportsActivityTracker = koinInject()
+    val sportsRebuild by sportsTracker.rebuild.collectAsStateWithLifecycle()
+    // A failed rebuild is said once, for 5 s, when it happens — not again each time the pill returns.
+    var sportsSeen by remember { mutableStateOf(sportsRebuild) }
+    var sportsFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(sportsRebuild) {
+        val was = sportsSeen
+        sportsSeen = sportsRebuild
+        if (sportsRebuild == tv.own.owntv.core.sports.RebuildState.Failed && was is tv.own.owntv.core.sports.RebuildState.Running) {
+            sportsFailed = true
+            delay(5000)
+            sportsFailed = false
+        }
+    }
+    val named = rememberPillNamedTitles(downloadTracker, recordingTracker)
 
-    val colors = OwnTVTheme.colors
 
     val completedQueue = remember { mutableStateListOf<SyncActivityTracker.CompletedSync>() }
     var currentCompleted by remember { mutableStateOf<SyncActivityTracker.CompletedSync?>(null) }
     var currentTrendingCompleted by remember { mutableStateOf<TrendingActivityTracker.CompletedBuild?>(null) }
 
     val anyActive = activeCatalog.isNotEmpty() || activeEpg.isNotEmpty() || activeTrending.isNotEmpty() ||
-        activeDownload != null || activeRecordings.isNotEmpty()
+        activeDownload != null || activeRecordings.isNotEmpty() || sportsRebuild is tv.own.owntv.core.sports.RebuildState.Running
 
     LaunchedEffect(lastCompleted) {
         val completed = lastCompleted ?: return@LaunchedEffect
@@ -118,28 +130,29 @@ fun SyncStatusPill(modifier: Modifier = Modifier) {
         }
     }
 
-    if (!anyActive && currentCompleted == null && currentTrendingCompleted == null) return
+    if (!anyActive && currentCompleted == null && currentTrendingCompleted == null && !sportsFailed) return
 
     // Catalog syncs first (they're the slower, more interesting ones), then guides, in a stable
     // order so a row doesn't jump around as progress updates arrive.
     val rows = buildList<SyncLine> {
-        // Recordings first, always (D13). They are time-critical and unrecoverable — a sync that is
+        // Recordings first, always. They are time-critical and unrecoverable — a sync that is
         // collapsed into "+N more" can be watched again in a minute, a programme that is being
         // recorded cannot. Then downloads, which are deliberately started and time-limited. Then the
         // background syncs, which are the ones that can afford to be hidden.
-        activeRecordings.values.sortedBy { it.id }.forEach { add(SyncLine.Recording(it)) }
-        activeDownload?.let { add(SyncLine.Download(it)) }
+        activeRecordings.values.sortedBy { it.id }.forEach { add(SyncLine.Recording(it, it.id in named.recordings)) }
+        activeDownload?.let { add(SyncLine.Download(it, it.id in named.downloads)) }
         activeCatalog.values.sortedBy { it.sourceId }.forEach { add(SyncLine.Catalog(it)) }
         activeTrending.values.sortedBy { it.sourceId }.forEach {
             add(SyncLine.Trending(it))
             add(SyncLine.TrendingDetail(it))
         }
         activeEpg.values.sortedBy { it.sourceId }.forEach { add(SyncLine.Epg(it)) }
+        if (sportsRebuild is tv.own.owntv.core.sports.RebuildState.Running) add(SyncLine.Sports)
     }
     val shown = rows.take(MAX_ROWS)
     val hidden = rows.size - shown.size
     val lineCount = shown.size + (if (hidden > 0) 1 else 0) +
-        (if (currentCompleted != null) 1 else 0) + (if (currentTrendingCompleted != null) 2 else 0)
+        (if (currentCompleted != null) 1 else 0) + (if (currentTrendingCompleted != null) 2 else 0) + (if (sportsFailed) 1 else 0)
 
     // The Stage glass card (as the top-right pills): fully round for one line, a rounded card for a stack.
     val radius = if (lineCount > 1) 22.mpx else 30.mpx
@@ -184,6 +197,15 @@ fun SyncStatusPill(modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (sportsFailed) {
+            Text(
+                stringResource(R.string.sports_rebuild_failed),
+                style = stageText(16, 600),
+                color = StageColors.ItemText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         currentTrendingCompleted?.let { completed ->
             Text(
                 trendingCompletedLine(completed),
@@ -211,15 +233,18 @@ fun SyncStatusPill(modifier: Modifier = Modifier) {
  */
 private sealed interface SyncLine {
     data class Catalog(val sync: SyncActivityTracker.ActiveSync) : SyncLine
-    data class Download(val download: DownloadActivityTracker.ActiveDownload) : SyncLine
-    data class Recording(val recording: tv.own.owntv.core.recording.RecordingProgress) : SyncLine
+    /** [named]: the title may show; false while its category is locked and sealed. */
+    data class Download(val download: DownloadActivityTracker.ActiveDownload, val named: Boolean) : SyncLine
+    data class Recording(val recording: tv.own.owntv.core.recording.RecordingProgress, val named: Boolean) : SyncLine
     data class Trending(val build: TrendingActivityTracker.ActiveBuild) : SyncLine
     data class TrendingDetail(val build: TrendingActivityTracker.ActiveBuild) : SyncLine
     data class Epg(val sync: EpgActivityTracker.ActiveEpgSync) : SyncLine
+    data object Sports : SyncLine
 }
 
 @Composable
 private fun SyncLine.text(): String = when (this) {
+    SyncLine.Sports -> stringResource(R.string.sports_rebuilding)
     is SyncLine.Catalog -> {
         val stage = sync.stage
         val counts = stage?.let {
@@ -251,14 +276,18 @@ private fun SyncLine.text(): String = when (this) {
     // With the size as it grows: a recording has no total to count towards, so the bytes already
     // written are the only sign it is moving rather than stuck.
     is SyncLine.Recording -> listOfNotNull(
-        stringResource(R.string.recording_pill_line, recording.title),
+        if (named) stringResource(R.string.recording_pill_line, recording.title) else stringResource(R.string.recording_pill_line_locked),
         recording.bytes.takeIf { it > 0 }
             ?.let { stringResource(R.string.common_size_mb, recordingSizeMb(it)) },
     ).joinToString(stringResource(R.string.content_epg_bits_separator))
     is SyncLine.Download -> {
         val percent = download.progress?.let { (it * 100).toInt() }
-        if (percent == null) stringResource(R.string.sync_status_download, download.title)
-        else stringResource(R.string.sync_status_download_with_progress, download.title, percent)
+        when {
+            percent == null -> if (named) stringResource(R.string.sync_status_download, download.title)
+                else stringResource(R.string.sync_status_download_locked)
+            named -> stringResource(R.string.sync_status_download_with_progress, download.title, percent)
+            else -> stringResource(R.string.sync_status_download_locked_with_progress, percent)
+        }
     }
     is SyncLine.Trending -> when (build.stage) {
         TrendingActivityTracker.Stage.STARTING -> stringResource(R.string.sync_status_trending_starting, build.sourceName)

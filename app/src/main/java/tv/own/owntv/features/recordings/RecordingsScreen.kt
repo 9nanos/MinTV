@@ -11,13 +11,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import tv.own.owntv.R
 import tv.own.owntv.core.database.entity.RecordingEntity
+import tv.own.owntv.core.database.entity.RecordingRuleEntity
 import tv.own.owntv.core.model.RecordingStatus
 import tv.own.owntv.core.recording.RecordingRules
+import tv.own.owntv.core.recording.SeriesRecording
 import tv.own.owntv.features.downloads.StageAction
 import tv.own.owntv.features.downloads.StageDownloadRow
 import tv.own.owntv.features.downloads.StageListLabel
@@ -49,9 +51,18 @@ internal fun recordingGroups(recordings: List<RecordingEntity>): List<Pair<Int, 
     R.string.recording_group_missed to recordings.filter { it.status == RecordingStatus.MISSED },
 ).filter { it.second.isNotEmpty() }
 
-/** The groups as `.dl` rows under their labels. One action per state, never more than the state can honestly offer. */
+/** A "record every showing" row's id in the list's focus map: negative, so it never meets a recording's. */
+internal fun seriesRowId(rule: RecordingRuleEntity): Long = -rule.id
+
+/**
+ * The groups as `.dl` rows under their labels. One action per state, never more than the state can honestly offer.
+ *
+ * First come the programmes set to record every showing: one that is on every day fills the drive with
+ * no end, and this is where it is stopped without first having to find a showing of it in the guide.
+ */
 internal fun LazyListScope.recordingItems(
     recordings: List<RecordingEntity>,
+    seriesRules: List<SeriesRecording>,
     focusOf: (Long) -> FocusRequester,
     onFocused: (Long) -> Unit,
     onPlay: (RecordingEntity) -> Unit,
@@ -59,11 +70,39 @@ internal fun LazyListScope.recordingItems(
     onCancel: (RecordingEntity) -> Unit,
     onRetry: (RecordingEntity) -> Unit,
     onDelete: (RecordingEntity) -> Unit,
+    onStopSeries: (RecordingRuleEntity) -> Unit,
+    /** Paths of finished recordings whose file is gone: those offer only Delete. */
+    missing: Set<String> = emptySet(),
 ) {
+    if (seriesRules.isNotEmpty()) {
+        item(key = "rhdr_series") { StageListLabel(stringResource(R.string.recording_group_series), first = true) }
+        items(seriesRules, key = { "rs_${it.rule.id}" }) { s ->
+            val id = seriesRowId(s.rule)
+            // Its next showing already scheduled, if the guide has one yet.
+            val next = recordings.filter { it.ruleId == s.rule.id && it.status == RecordingStatus.SCHEDULED }.minByOrNull { it.startMs }
+            StageDownloadRow(
+                title = s.rule.title,
+                line = s.rule.channelName,
+                path = null,
+                onFocused = { onFocused(id) },
+                focus = focusOf(id),
+                actions = listOf(StageAction(stringResource(R.string.recording_stop_series), OwnTVIcon.CLOSE) { onStopSeries(s.rule) }),
+                onClick = null,
+                art = {
+                    Box(Modifier.fillMaxSize().background(tv.own.owntv.ui.stage.stageStillBack).padding(14.mpx), contentAlignment = Alignment.Center) {
+                        tv.own.owntv.features.live.LivePlate(s.channelLogoUrl, 162.mpx, 79.mpx)
+                    }
+                },
+            ) {
+                next?.let { StatusLine(recordingWhen(it.programmeStartMs)) }
+            }
+        }
+    }
     recordingGroups(recordings).forEachIndexed { g, (labelRes, rows) ->
-        item(key = "rhdr_$labelRes") { StageListLabel(stringResource(labelRes), first = g == 0) }
+        item(key = "rhdr_$labelRes") { StageListLabel(stringResource(labelRes), first = g == 0 && seriesRules.isEmpty()) }
         items(rows, key = { "r_${it.id}" }) { r ->
             val delete = StageAction(stringResource(R.string.common_delete), OwnTVIcon.TRASH) { onDelete(r) }
+            val gone = r.status == RecordingStatus.COMPLETED && r.filePath in missing
             StageDownloadRow(
                 title = r.title,
                 line = recordingLine(r),
@@ -79,14 +118,16 @@ internal fun LazyListScope.recordingItems(
                     RecordingStatus.CANCELLED -> emptyList()
                 },
                 // A recording still being written is not playable here: two readers on one growing file.
-                onClick = if (r.status == RecordingStatus.COMPLETED) ({ onPlay(r) }) else null,
+                onClick = if (r.status == RecordingStatus.COMPLETED && !gone) ({ onPlay(r) }) else null,
                 art = {
-                    // The channel's logo on the white plate, as everywhere a channel is named.
-                    Box(Modifier.fillMaxSize().background(Color.White).padding(14.mpx), contentAlignment = Alignment.Center) {
+                    // The channel's logo on its plate, as everywhere a channel is named.
+                    Box(Modifier.fillMaxSize().background(tv.own.owntv.ui.stage.stageStillBack).padding(14.mpx), contentAlignment = Alignment.Center) {
                         tv.own.owntv.features.live.LivePlate(r.channelIconUrl, 162.mpx, 79.mpx)
                     }
                 },
-            ) { RecordingStatusText(r) }
+            ) {
+                if (gone) StatusLine(stringResource(R.string.content_downloads_file_missing), Color(0xFFEF4444)) else RecordingStatusText(r)
+            }
         }
     }
 }
@@ -110,7 +151,7 @@ private fun RecordingStatusText(r: RecordingEntity) {
         RecordingStatus.SCHEDULED -> StatusLine(recordingWhen(r.programmeStartMs))
         RecordingStatus.COMPLETED -> StageReady()
         RecordingStatus.FAILED, RecordingStatus.MISSED -> StatusLine(
-            RecordingRules.displayTextOf(r.failure, LocalContext.current.resources) ?: stringResource(R.string.recording_failed_unknown),
+            RecordingRules.displayTextOf(r.failure, LocalResources.current) ?: stringResource(R.string.recording_failed_unknown),
             Color(0xFFEF4444),
         )
         RecordingStatus.CANCELLED -> Unit

@@ -1,9 +1,11 @@
 package tv.own.owntv.ui.stage
 
+import tv.own.owntv.ui.theme.stageTone
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,6 +48,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,14 +58,18 @@ import androidx.tv.material3.Text
 import tv.own.owntv.ui.components.OwnTVIcon
 import tv.own.owntv.ui.theme.StageAccent
 import tv.own.owntv.ui.theme.StageColors
+import tv.own.owntv.ui.theme.LocalStagePalette
+import tv.own.owntv.ui.theme.StagePalette
 import tv.own.owntv.ui.theme.StageRadii
 import tv.own.owntv.ui.theme.mpx
 import tv.own.owntv.ui.theme.ownTvTween
 import tv.own.owntv.ui.theme.stageAccent
+import tv.own.owntv.ui.theme.stageShadow
+
 import tv.own.owntv.ui.theme.stageText
 
 /*
- * The Stage component set (mockup `.mine` classes). Idle = nothing, selected = accent text + dot or bar,
+ * The Stage component set (the design's `.mine` classes). Idle = nothing, selected = accent text + dot or bar,
  * focused = the one loud thing, in one of four treatments:
  *
  *  FX       rows and cards: accent 34%→14% sweep, 2 px focus ring inside, 44 px accent glow.
@@ -73,11 +81,37 @@ enum class StageFocus { FX, FILLED, PRIMARY, POSTER }
 
 /** A focus treatment on a custom-built element (the audio card), drawn exactly as [StageSurface] draws it. */
 @Composable
-fun Modifier.stageFocusLook(style: StageFocus, radius: Dp): Modifier = stageFocusDecor(style, radius, stageAccent)
+fun Modifier.stageFocusLook(style: StageFocus, radius: Dp): Modifier =
+    stageFocusDecor(style, radius, stageAccent, LocalStagePalette.current)
 
-private fun Modifier.stageFocusDecor(style: StageFocus, radius: Dp, a: StageAccent) = drawBehind {
+private fun Modifier.stageFocusDecor(style: StageFocus, radius: Dp, a: StageAccent, palette: StagePalette) = drawBehind {
     val r = radius.toPx()
     val px = 1.mpx.toPx()
+    if (palette.isLight) {
+        // `.mine.light`: the accent is the ring, set off from the item by a page-coloured gap.
+        when (style) {
+            StageFocus.FX -> {
+                drawBoxShadow(a.accent.copy(alpha = 0.18f), 30 * px, r, dy = 10 * px)
+                drawRoundRect(
+                    Brush.horizontalGradient(listOf(a.accent.copy(alpha = 0.18f), a.accent.copy(alpha = 0.06f))),
+                    cornerRadius = CornerRadius(r),
+                )
+                drawInnerRing(a.accent, 2.5f * px, r)
+            }
+            StageFocus.FILLED, StageFocus.PRIMARY -> {
+                drawBoxShadow(a.accent.copy(alpha = 0.3f), 30 * px, r, dy = 12 * px)
+                drawRoundRect(a.accent, cornerRadius = CornerRadius(r))
+                drawOuterRing(palette.page, 2.5f * px, r)
+                drawOuterRing(a.accent, 2.5f * px, r, inset = 2.5f * px)
+            }
+            StageFocus.POSTER -> {
+                drawBoxShadow(a.accent.copy(alpha = 0.3f), 44 * px, r, dy = 20 * px)
+                drawOuterRing(palette.page, 3 * px, r)
+                drawOuterRing(a.accent, 4 * px, r, inset = 3 * px)
+            }
+        }
+        return@drawBehind
+    }
     when (style) {
         StageFocus.FX -> {
             drawBoxShadow(a.accent.copy(alpha = 0.28f), 44 * px, r)
@@ -107,8 +141,8 @@ private fun Modifier.stageFocusDecor(style: StageFocus, radius: Dp, a: StageAcce
 }
 
 /**
- * The focusable base every Stage control is built on: D-pad focus and click wiring as in
- * FocusableSurface, the [focusStyle] treatment while focused, [idle] (a fill or [stageGlass]) otherwise.
+ * The focusable base every Stage control is built on: D-pad focus and click wiring (a held OK calls
+ * [onLongClick]), the [focusStyle] treatment while focused, [idle] (a fill or [stageGlass]) otherwise.
  * Nothing is clipped, so rings and glows reach past the bounds exactly as a `box-shadow` does.
  */
 @Composable
@@ -123,15 +157,17 @@ fun StageSurface(
     contentAlignment: Alignment = Alignment.CenterStart,
     /** Drawn as focused without holding focus: a pill whose menu is open over it. */
     highlighted: Boolean = false,
+    /** The focus colours; the player's chrome passes its on-video accent. */
+    accent: StageAccent = stageAccent,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused = interaction.collectIsFocusedAsState().value || highlighted
-    val accent = stageAccent
+    val palette = LocalStagePalette.current
     Box(
         modifier = modifier
             .stageLift(focused, focusStyle)
-            .then(if (focused) Modifier.stageFocusDecor(focusStyle, radius, accent) else idle)
+            .then(if (focused) Modifier.stageFocusDecor(focusStyle, radius, accent, palette) else idle)
             .stageClickable(interaction, enabled, onClick, onLongClick),
         contentAlignment = contentAlignment,
     ) { content(focused) }
@@ -319,6 +355,8 @@ fun StageTool(
     valueAccent: Boolean = false,
     /** `.danger`: a destructive action in red ("Clear watch history"). */
     danger: Boolean = false,
+    /** Off: drawn dim and skipped by the D-pad (a sort that does not apply to the open list). */
+    enabled: Boolean = true,
 ) {
     val a = stageAccent
     val r = StageRadii.Tool
@@ -327,16 +365,17 @@ fun StageTool(
         radius = r,
         modifier = modifier.height(48.mpx),
         idle = if (boxed) Modifier.background(StageColors.ControlFill, RoundedCornerShape(r)) else Modifier,
+        enabled = enabled,
     ) { focused ->
         Row(
             Modifier.padding(horizontal = 16.mpx),
             horizontalArrangement = Arrangement.spacedBy(9.mpx),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val color = if (focused) a.onAccent else if (danger) StageColors.Danger else StageColors.Muted
+            val color = if (focused) a.onAccent else if (!enabled) StageColors.Dim else if (danger) StageColors.Danger else StageColors.Muted
             if (icon != null) StageIcon(icon, color, 20.mpx)
             if (text != null) Text(text, style = stageText(18, 700), color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (value != null) Text(value, style = stageText(18, 700), color = if (focused) a.onAccent else if (valueAccent) a.accent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (value != null) Text(value, style = stageText(18, 700), color = if (focused) a.onAccent else if (!enabled) StageColors.Dim else if (valueAccent) a.accent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (trailingIcon != null) StageIcon(trailingIcon, color, 20.mpx)
         }
     }
@@ -344,7 +383,7 @@ fun StageTool(
 
 /**
  * `.ttab`: "Season 1 12", "Movies 3" — 22/700 muted, the count 16 dim; the open tab in full text colour
- * with a 4 px accent underline glowing at 70%. Focused = FILLED (the mockup draws no focused tab).
+ * with a 4 px accent underline glowing at 70%. Focused = FILLED.
  */
 @Composable
 fun StageTab(label: String, count: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -381,7 +420,7 @@ fun StageTab(label: String, count: String, selected: Boolean, onClick: () -> Uni
 
 /**
  * `.seg2`: two or more options in one white-6% capsule; the chosen one sits on white 13% in full text
- * colour. The mockup draws no focused segment; a focused one takes the FILLED treatment, as `.row2`
+ * colour. A focused one takes the FILLED treatment, as `.row2`
  * does in menus.
  */
 @Composable
@@ -409,7 +448,7 @@ fun StageSegmented(
                 onClick = { onSelect(i) },
                 radius = 11.mpx,
                 modifier = Modifier.height(40.mpx).focusRequester(optionFocus[i]),
-                idle = if (on) Modifier.background(Color.White.copy(alpha = 0.13f), RoundedCornerShape(11.mpx)) else Modifier,
+                idle = if (on) Modifier.background(LocalStagePalette.current.segmentOn, RoundedCornerShape(11.mpx)) else Modifier,
             ) { focused ->
                 val color = when {
                     focused -> a.onAccent
@@ -447,7 +486,7 @@ fun StageTag(text: String, onAccent: Color? = null, tint: Color? = null) {
                     onAccent != null -> Color.Black.copy(alpha = 0.18f)
                     // A coloured tag ("IN USE", "UP TO DATE"): the colour at 20% behind its own text.
                     tint != null -> tint.copy(alpha = 0.2f)
-                    else -> Color.White.copy(alpha = 0.08f)
+                    else -> StageColors.Ink.copy(alpha = 0.08f)
                 },
                 RoundedCornerShape(StageRadii.Tag),
             )
@@ -459,18 +498,25 @@ fun StageTag(text: String, onAccent: Color? = null, tint: Color? = null) {
 @Composable
 fun StagePlaylistMark(mark: PlaylistMark) {
     val shape = RoundedCornerShape(7.mpx)
+    val color = mark.shownColor
     Box(
         Modifier
             .height(22.mpx)
             .defaultMinSize(minWidth = 30.mpx)
-            .drawBehind { drawInnerRing(mark.color, 1.5f * 1.mpx.toPx(), 7.mpx.toPx()) }
+            .drawBehind { drawInnerRing(color, 1.5f * 1.mpx.toPx(), 7.mpx.toPx()) }
             .clip(shape)
             .padding(horizontal = 6.mpx),
         contentAlignment = Alignment.Center,
     ) {
-        Text(mark.text, style = stageText(12, 800, 0.04.em), color = mark.color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(mark.text, style = stageText(12, 800, 0.04.em), color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
+
+/** The mark's colour as shown: the pastel marks are darkened in light (`.mine.light .pm`, brightness .72) to read on white. */
+val PlaylistMark.shownColor: Color
+    @Composable
+    @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (LocalStagePalette.current.isLight) Color(color.red * 0.72f, color.green * 0.72f, color.blue * 0.72f, color.alpha) else color
 
 // ---------------------------------------------------------------------------------------------
 // Rows, menus, sheets
@@ -539,7 +585,7 @@ fun StageMenuHeader(title: String, subtitle: String?, leading: (@Composable () -
 
 /**
  * `.menu .mg` / `.sheet .grp`: a dim group label ("WATCH", "GROUPS · DE"). The text is passed in
- * capitals, as the mockup writes it; upper-casing in code would break Turkish (i → İ).
+ * capitals; upper-casing in code would break Turkish (i → İ).
  */
 @Composable
 fun StageGroupLabel(text: String, sheet: Boolean = false) {
@@ -596,26 +642,6 @@ fun StageMenuItem(
     }
 }
 
-/** `.sheet`: a tier that slides over the content (categories, settings groups). */
-@Composable
-fun StageSheet(title: String, modifier: Modifier = Modifier, trailing: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier
-            .stageGlass(StageRadii.Sheet, overContent = true)
-            .padding(horizontal = 16.mpx, vertical = 26.mpx),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 14.mpx, end = 14.mpx, bottom = 16.mpx),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(title, style = stageText(26, 800), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (trailing != null) Text(trailing, style = stageText(17, 400), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        content()
-    }
-}
-
 /**
  * `.sheet .ci`: 56 high, 20/600. Selected = accent text with the glowing dot before it; focused =
  * FILLED. [tags] follow the name; [count] and then [trailing] (the playlist mark) sit on the right.
@@ -629,7 +655,7 @@ fun StageSheetItem(
     count: String? = null,
     selected: Boolean = false,
     onLongClick: (() -> Unit)? = null,
-    /** 2 lets a long name wrap instead of being cut; the row then grows past 56 (owner, 2026-09-30). */
+    /** 2 lets a long name wrap instead of being cut; the row then grows past 56. */
     maxLines: Int = 1,
     tags: (@Composable RowScope.(focused: Boolean) -> Unit)? = null,
     trailing: (@Composable RowScope.(focused: Boolean) -> Unit)? = null,
@@ -739,7 +765,7 @@ fun StageTile(
     content: @Composable ColumnScope.(focused: Boolean) -> Unit,
 ) {
     val r = 26.mpx
-    val idle = Modifier.background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(r))
+    val idle = Modifier.background(StageColors.Ink.copy(alpha = 0.05f), RoundedCornerShape(r))
     if (onClick == null) {
         Column(
             modifier.then(if (focusedLook) Modifier.stageFocusLook(StageFocus.FX, r) else idle).padding(padding),
@@ -771,16 +797,19 @@ fun StagePoster(
     onLongClick: (() -> Unit)? = null,
     /** The Separate grid's smaller posters: 15.5 px title, the 66×28 chip. */
     compact: Boolean = false,
-    progress: Float? = null,
-    watched: Boolean = false,
     /** More › Favourites: a muted line under the title ("Movie"); the title is then 18/700 white. */
     line: String? = null,
+    /** How far the title has been watched: the 6 px accent bar along the artwork's bottom, as on `.ep`. */
+    progress: Float? = null,
+    /** A finished title: the `.ep` ✓ badge in the top corner instead of a bar. */
+    watched: Boolean = false,
     artwork: @Composable BoxScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val accent = stageAccent
     val r = StageRadii.Poster
+    val badge = Color(8, 12, 14)
     Column(
         modifier
             .width(width)
@@ -792,10 +821,12 @@ fun StagePoster(
                 .size(width, height)
                 .then(
                     if (focused) {
-                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent)
+                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent, LocalStagePalette.current)
                     } else {
+                        // `.mine.light .pc .img`: a soft green-grey shadow instead of black.
+                        val shadow = stageShadow(0.45f)
                         Modifier.drawBehind {
-                            drawBoxShadow(Color.Black.copy(alpha = 0.45f), 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
+                            drawBoxShadow(shadow, 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
                         }
                     },
                 )
@@ -803,17 +834,26 @@ fun StagePoster(
         ) {
             artwork()
             if (rating != null) StageRatingChip(rating, Modifier.padding(8.mpx), small = compact)
-            progress?.takeIf { it > 0f }?.let {
-                StageProgress(it.coerceIn(0f, 1f), Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(5.mpx))
+            if (watched) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(8.mpx).size(if (compact) 26.mpx else 30.mpx)
+                        .background(badge.copy(alpha = 0.9f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { StageIcon(OwnTVIcon.CHECK, accent.accent, if (compact) 16.mpx else 18.mpx) }
+            } else if (progress != null && progress > 0f) {
+                Box(
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().height(6.mpx)
+                        .background(Color.Black.copy(alpha = 0.55f)),
+                ) {
+                    Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).height(6.mpx).background(accent.accent))
+                }
             }
-            if (watched) Text("✓", style = stageText(24, 800), color = StageColors.Ok,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(10.mpx), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(12.mpx))
         Text(
             title,
             style = if (line != null) stageText(18, 700) else stageText(if (compact) 15.5f else 17f, if (focused) 700 else 600),
-            color = if (focused || line != null) Color.White else StageColors.Muted,
+            color = if (focused || line != null) stageTone(Color.White, StageColors.Text) else StageColors.Muted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -855,10 +895,12 @@ fun StageStill(
                 .size(width, height)
                 .then(
                     if (focused) {
-                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent)
+                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent, LocalStagePalette.current)
                     } else {
+                        // `.mine.light .pc .img`: a soft green-grey shadow instead of black.
+                        val shadow = stageShadow(0.45f)
                         Modifier.drawBehind {
-                            drawBoxShadow(Color.Black.copy(alpha = 0.45f), 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
+                            drawBoxShadow(shadow, 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
                         }
                     },
                 )
@@ -875,7 +917,7 @@ fun StageStill(
             }
         }
         Spacer(Modifier.height(12.mpx))
-        Text(title, style = stageText(titleSize, 700), color = Color(0xFFE6EEEA), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, style = stageText(titleSize, 700), color = stageTone(Color(0xFFE6EEEA), StageColors.Text), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (line != null) {
             Spacer(Modifier.height((if (lineSize >= 16) 4 else 3).mpx))
             Text(line, style = stageText(lineSize, 400), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -892,7 +934,7 @@ private val WatchedFilter = ColorFilter.colorMatrix(
 )
 
 /**
- * `.ep` (P6-01): the 16:9 still, radius 16, with the episode number in its corner, a ✓ for a watched
+ * `.ep`: the 16:9 still, radius 16, with the episode number in its corner, a ✓ for a watched
  * one (its still dimmed), the 6 px progress bar for one in progress; the title 19/700 and the muted
  * line ("Jan 21, 2024 · 24 min · 12 min left") under it. Focused: lifted 1.06 from 50% 30%, the POSTER
  * ring and glow round the still. [artwork] gets the watched filter to apply to its image.
@@ -927,10 +969,12 @@ fun StageEpisode(
                 .size(width, height)
                 .then(
                     if (focused) {
-                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent)
+                        Modifier.stageFocusDecor(StageFocus.POSTER, r, accent, LocalStagePalette.current)
                     } else {
+                        // `.mine.light .pc .img`: a soft green-grey shadow instead of black.
+                        val shadow = stageShadow(0.45f)
                         Modifier.drawBehind {
-                            drawBoxShadow(Color.Black.copy(alpha = 0.45f), 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
+                            drawBoxShadow(shadow, 26.mpx.toPx(), r.toPx(), dy = 10.mpx.toPx())
                         }
                     },
                 )
@@ -1007,7 +1051,7 @@ fun StageMenuChoice(
                         .background(a.accent.copy(alpha = 0.18f), RoundedCornerShape(r))
                         .drawBehind { drawInnerRing(a.accent.copy(alpha = 0.6f), 1.5f * 1.mpx.toPx(), r.toPx()) }
                 } else {
-                    Modifier.background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(r))
+                    Modifier.background(StageColors.ControlFill, RoundedCornerShape(r))
                 },
                 contentAlignment = Alignment.Center,
             ) { focused ->
@@ -1040,11 +1084,17 @@ fun StageRatingChip(rating: String, modifier: Modifier = Modifier, small: Boolea
 }
 
 /**
- * `.stp`: "− 90% +" inside a settings row. Display only: the row owns focus and ◀ ▶ change the value
- * (P10, "controls inside the rows").
+ * `.stp`: "− 90% +" inside a settings row. The row owns focus and ◀ ▶ change the value ("controls
+ * inside the rows"). With [onStep], a touch or air-mouse tap on "−" / "+" steps that way: the buttons
+ * take no focus, so the D-pad still treats the row as one control, and the tap is consumed here, so
+ * the row's own click (which steps up) does not fire as well.
  */
 @Composable
-fun StageStepper(value: String) {
+fun StageStepper(value: String, onStep: ((Int) -> Unit)? = null) {
+    val step by rememberUpdatedState(onStep)
+    fun tap(dir: Int) = if (onStep == null) Modifier else Modifier.pointerInput(dir) {
+        detectTapGestures { step?.invoke(dir) }
+    }
     Row(
         Modifier
             .background(StageColors.ControlFill, RoundedCornerShape(13.mpx))
@@ -1052,7 +1102,7 @@ fun StageStepper(value: String) {
         horizontalArrangement = Arrangement.spacedBy(4.mpx),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(34.mpx), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.mpx).then(tap(-1)), contentAlignment = Alignment.Center) {
             Text("−", style = stageText(20, 700), color = StageColors.Muted)
         }
         Text(
@@ -1063,7 +1113,7 @@ fun StageStepper(value: String) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.widthIn(min = 64.mpx),
         )
-        Box(Modifier.size(34.mpx), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.mpx).then(tap(1)), contentAlignment = Alignment.Center) {
             Text("+", style = stageText(20, 700), color = StageColors.Muted)
         }
     }
@@ -1076,13 +1126,20 @@ fun StageSwitch(on: Boolean) {
     Box(
         Modifier
             .size(56.mpx, 32.mpx)
-            .background(if (on) a.accent else Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.mpx)),
+            .background(if (on) a.accent else StageColors.Ink.copy(alpha = 0.14f), RoundedCornerShape(16.mpx)),
     ) {
         Box(
             Modifier
                 .offset(x = if (on) 28.mpx else 4.mpx, y = 4.mpx)
                 .size(24.mpx)
-                .background(if (on) Color.White else Color(0xFFCFD8D4), CircleShape),
+                .background(if (on) Color.White else LocalStagePalette.current.knobOff, CircleShape),
         )
     }
 }
+
+
+/** The tile behind a channel logo or a missing picture (`#0f1518`); ink 6% on the light page. */
+val stageStillBack: Color
+    @Composable
+    @androidx.compose.runtime.ReadOnlyComposable
+    get() = if (LocalStagePalette.current.isLight) StageColors.Ink.copy(alpha = 0.06f) else Color(0xFF0F1518)

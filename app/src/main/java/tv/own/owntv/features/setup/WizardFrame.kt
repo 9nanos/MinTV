@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,11 +49,11 @@ import tv.own.owntv.ui.theme.stageText
 /** One footer button of a wizard step: its label and what OK on it does. */
 internal class WizardAction(val label: String, val onClick: () -> Unit, val focus: FocusRequester? = null, val enabled: Boolean = true)
 
-/** The five steps the dots show (P10B-W1 … W9): which one a page belongs to. */
+/** The five steps the dots show: which one a page belongs to. */
 internal enum class WizardStep { LANGUAGE, DISPLAY, PROFILE, PLAYLIST, READY }
 
 /**
- * Every setup step's frame (P10B-W1 … W9): the Stage background, the OwnTV lockup top left, the step
+ * Every setup step's frame: the Stage background, the OwnTV lockup top left, the step
  * dots top right, one glass panel (1040 wide, centred, from y 170) with a 42 px title, 19 px text and the
  * step's rows or cards, then [back] bottom-left and [next] bottom-right, and the key hints at the bottom.
  * Back on the remote calls [back] (or [onBack] where the step has no Back button).
@@ -140,7 +142,7 @@ private fun StepDots(current: WizardStep, modifier: Modifier) {
                 Box(
                     Modifier
                         .size(width = if (on) 26.mpx else 10.mpx, height = 10.mpx)
-                        .background(if (reached) a.accent else Color.White.copy(alpha = 0.18f), RoundedCornerShape(5.mpx)),
+                        .background(if (reached) a.accent else StageColors.Ink.copy(alpha = 0.18f), RoundedCornerShape(5.mpx)),
                 )
                 if (on) Text(stringResource(s.labelRes), style = stageText(15, 700), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -156,21 +158,26 @@ private val WizardStep.labelRes: Int get() = when (this) {
     WizardStep.READY -> R.string.setup_step_ready
 }
 
-/** One choice card of a step (`.tile2`, W4 / W7): icon, 23 px title, 16 px line; focused = FX. */
+/** One choice card of a step (`.tile2`): icon, 23 px title, 16 px line; focused = FX. */
 internal class WizardCard(val icon: OwnTVIcon, val title: String, val line: String, val onClick: () -> Unit)
 
-/** The cards side by side, equal widths, 16 apart; the first takes [firstFocus]. */
+/**
+ * The cards side by side, equal widths and heights, 16 apart; the first takes [firstFocus]. Each card is
+ * as tall as the tallest and starts its icon at the top, so a one-line card lines up with a two-line one.
+ */
 @Composable
 internal fun WizardCards(cards: List<WizardCard>, firstFocus: FocusRequester? = null) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.mpx)) {
+    Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(16.mpx)) {
         cards.forEachIndexed { i, card ->
             StageSurface(
                 onClick = card.onClick,
                 radius = 22.mpx,
                 focusStyle = StageFocus.FX,
-                idle = Modifier.background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(22.mpx)),
+                idle = Modifier.background(StageColors.Ink.copy(alpha = 0.05f), RoundedCornerShape(22.mpx)),
+                contentAlignment = Alignment.TopStart,
                 modifier = Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .heightIn(min = 170.mpx)
                     .then(if (i == 0 && firstFocus != null) Modifier.focusRequester(firstFocus) else Modifier),
             ) { focused ->

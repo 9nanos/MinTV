@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,15 +33,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
+import tv.own.owntv.ui.components.longPressMenuGuard
 import tv.own.owntv.R
 import tv.own.owntv.ui.theme.mpx
 import tv.own.owntv.ui.theme.stageText
 import tv.own.owntv.ui.theme.stageAccent
 import tv.own.owntv.ui.theme.StageColors
 import tv.own.owntv.ui.components.OwnTVIcon
-import tv.own.owntv.ui.components.dialogPanel
 import tv.own.owntv.ui.components.displayLabel
-import tv.own.owntv.ui.components.modalScrim
 import tv.own.owntv.ui.format.localizedDecimal
 
 /**
@@ -72,11 +72,13 @@ internal fun TrackDialog(
     audioDelayRemembered: Boolean = false,
     onToggleRememberAudioDelay: (() -> Unit)? = null,
     // Non-null on the Subtitles dialog for a movie/episode → an "ADD SUBTITLES" row that opens the
-    // OpenSubtitles search (subtitle plan §4). Absent for Live TV and when no item context exists.
+    // OpenSubtitles search. Absent for Live TV and when no item context exists.
     onSearchSubtitles: (() -> Unit)? = null,
-    // Non-null on the Subtitles dialog for a movie/episode → "Select local subtitle file" (plan §7).
+    // Non-null on the Subtitles dialog for a movie/episode → "Select local subtitle file".
     onSelectLocalSubtitle: (() -> Unit)? = null,
-    // Non-null on the Subtitles dialog when timing adjustment applies to the active track (plan §8) →
+    // Non-null on the Subtitles dialog for a movie/episode → "Find in folder".
+    onFindSubtitleInFolder: (() -> Unit)? = null,
+    // Non-null on the Subtitles dialog when timing adjustment applies to the active track →
     // an "ADJUST" section with a "Subtitle timing" row: ◀ ▶ nudge it, OK sets it back to zero.
     subDelayMs: Int = 0,
     onAdjustSubDelay: ((Int) -> Unit)? = null,
@@ -103,7 +105,7 @@ internal fun TrackDialog(
         repeat(10) {
             androidx.compose.runtime.withFrameNanos { }
             if (selectedIndex >= 0) runCatching { listState.scrollToItem(target) }
-            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { focus.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             delay(50)
         }
     }
@@ -130,8 +132,8 @@ internal fun TrackDialog(
                 onClick = { onSelect(track) },
             )
         }
-        // ADD SUBTITLES (subtitles dialog, movie/episode only) — OpenSubtitles search + local file (§4/§7).
-        if (onSearchSubtitles != null || onSelectLocalSubtitle != null) {
+        // ADD SUBTITLES (subtitles dialog, movie/episode only) — OpenSubtitles search + local file.
+        if (onSearchSubtitles != null || onSelectLocalSubtitle != null || onFindSubtitleInFolder != null) {
             item { tv.own.owntv.ui.stage.StagePopupLabel(stringResource(R.string.player_add_subtitles), Modifier.padding(top = 12.mpx)) }
             if (onSearchSubtitles != null) {
                 item { ActionRow(stringResource(R.string.player_search_subtitles), OwnTVIcon.SEARCH, onSearchSubtitles) }
@@ -139,8 +141,11 @@ internal fun TrackDialog(
             if (onSelectLocalSubtitle != null) {
                 item { ActionRow(stringResource(R.string.player_select_local_subtitle), OwnTVIcon.FOLDER, onSelectLocalSubtitle) }
             }
+            if (onFindSubtitleInFolder != null) {
+                item { ActionRow(stringResource(R.string.player_subtitle_find_in_folder), OwnTVIcon.FOLDER, onFindSubtitleInFolder) }
+            }
         }
-        // ADJUST (subtitles dialog): timing panel for the active subtitle (plan §8).
+        // ADJUST (subtitles dialog): timing panel for the active subtitle.
         if (onAdjustSubDelay != null) {
             item { tv.own.owntv.ui.stage.StagePopupLabel(stringResource(R.string.player_adjust), Modifier.padding(top = 12.mpx)) }
             item {
@@ -191,7 +196,7 @@ internal fun TrackDialog(
 private suspend fun requestFocusRetrying(focus: FocusRequester) {
     repeat(10) {
         androidx.compose.runtime.withFrameNanos {}
-        if (runCatching { focus.requestFocus() }.isSuccess) return
+        if (runCatching { focus.requestFocus() }.getOrDefault(false)) return
         delay(50)
     }
 }
@@ -223,7 +228,7 @@ internal fun SpeedDialog(current: Double, onSelect: (Double) -> Unit, onDismiss:
 }
 
 /**
- * The sleep timer's choices (N17), the phone's sheet in the television's dialog: Off while one is
+ * The sleep timer's choices, the phone's sheet in the television's dialog: Off while one is
  * running, the shared minute choices, "End of programme" only when the guide says when that is, and
  * "End of movie / episode" only while one plays.
  * The title turns into the countdown while a timer runs, so re-opening it says what is set.
@@ -304,7 +309,7 @@ private fun ScreenOffRow(screenOff: ScreenOff = koinInject()) {
                 screenOff.revoke()
                 allowed = false
             } else {
-                runCatching { ask.launch(screenOff.requestIntent()) }.onFailure {
+                runCatching { tv.own.owntv.features.pip.startAsHandOff(screenOff.requestIntent()) { ask.launch(it) } }.onFailure {
                     android.widget.Toast.makeText(context, R.string.player_sleep_timer_screen_off_unavailable, android.widget.Toast.LENGTH_LONG).show()
                 }
             }
@@ -319,7 +324,12 @@ internal fun ZoomDialog(current: ZoomMode, onSelect: (ZoomMode) -> Unit, onDismi
     BackHandler { onDismiss() }
     // Land focus on the current mode (not always the first row) so re-opening starts on your selection.
     val selectedIndex = ZoomMode.entries.indexOf(current).coerceAtLeast(0)
-    DialogScaffold(title = stringResource(R.string.settings_player_zoom), onDismiss = onDismiss) {
+    // Opened by holding OK on the aspect button: the hold's repeats must not pick the focused row.
+    DialogScaffold(
+        title = stringResource(R.string.settings_player_zoom),
+        onDismiss = onDismiss,
+        modifier = Modifier.longPressMenuGuard(),
+    ) {
         items(ZoomMode.entries.size) { index ->
             val mode = ZoomMode.entries[index]
             OptionRow(label = stringResource(mode.labelRes), selected = mode == current, modifier = if (index == selectedIndex) Modifier.focusRequester(focus) else Modifier, onClick = { onSelect(mode) })
@@ -327,7 +337,42 @@ internal fun ZoomDialog(current: ZoomMode, onSelect: (ZoomMode) -> Unit, onDismi
     }
 }
 
-/** N11 — Auto (Settings → Maximum video quality), then every height this stream offers, highest first. */
+/** Auto (Settings → Maximum video quality), then every height this stream offers, highest first. */
+/**
+ * "Sources": the playing channel and its other versions, best picture first, the one on screen ringed.
+ * Each row names the version, then its category and playlist, with the provider's quality marks at the
+ * end. Opens once the list is read (a quick indexed lookup, then cached for the channel).
+ */
+@Composable
+internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
+    val versions by produceState<List<tv.own.owntv.core.live.ChannelVersion>?>(null) { value = sources.load() }
+    val list = versions ?: return
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { requestFocusRetrying(focus) }
+    BackHandler { onDismiss() }
+    val separator = stringResource(R.string.content_epg_bits_separator)
+    val focusIndex = list.indexOfFirst { it.channel.id == sources.playingId }.coerceAtLeast(0)
+    DialogScaffold(title = stringResource(R.string.player_tool_sources), onDismiss = onDismiss) {
+        items(list.size) { index ->
+            val v = list[index]
+            val playing = v.channel.id == sources.playingId
+            tv.own.owntv.ui.stage.StagePopupOption(
+                title = v.name,
+                subtitle = listOfNotNull(v.categoryName, v.playlistName).filter { it.isNotBlank() }.distinct().joinToString(separator).ifEmpty { null },
+                value = v.tags.joinToString(" ").ifEmpty { null },
+                chosen = playing,
+                modifier = if (index == focusIndex) Modifier.focusRequester(focus) else Modifier,
+                leading = { f -> tv.own.owntv.ui.stage.StagePopupRadio(playing, f) },
+                onClick = { onDismiss(); if (!playing) sources.onPick(v.channel) },
+            )
+        }
+        // Only the channel itself: say so, rather than leave a list of one that looks like a fault.
+        if (list.size <= 1) item {
+            tv.own.owntv.ui.stage.StagePopupOption(title = stringResource(R.string.player_sources_none), onClick = onDismiss, enabled = false)
+        }
+    }
+}
+
 @Composable
 internal fun QualityDialog(heights: List<Int>, current: Int?, onSelect: (Int?) -> Unit, onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
@@ -419,11 +464,13 @@ private fun StepButton(label: String, enabled: Boolean, modifier: Modifier = Mod
 private fun DialogScaffold(
     title: String,
     onDismiss: () -> Unit,
+    // Applied to the list, so it sees the rows' keys first (a guard against a still-held OK).
+    modifier: Modifier = Modifier,
     state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     tv.own.owntv.ui.stage.StagePopup(onDismiss = onDismiss, title = title, eyebrow = null, width = 640.mpx, scroll = false) {
-        LazyColumn(state = state, modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.mpx), content = content)
+        LazyColumn(state = state, modifier = Modifier.weight(1f, fill = false).then(modifier), verticalArrangement = Arrangement.spacedBy(4.mpx), content = content)
     }
 }
 

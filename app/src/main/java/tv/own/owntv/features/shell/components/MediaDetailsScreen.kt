@@ -1,5 +1,7 @@
 package tv.own.owntv.features.shell.components
 
+import tv.own.owntv.ui.theme.stageTone
+import tv.own.owntv.ui.theme.LocalStagePalette
 import androidx.compose.runtime.Immutable
 
 import androidx.compose.foundation.background
@@ -52,7 +54,7 @@ import tv.own.owntv.ui.components.trapAllFocusExit
 import tv.own.owntv.ui.theme.gradientWash
 
 /**
- * Read-only, already-merged data for the [MediaDetailsScreen] window. The caller applies the §7.1/§4.1
+ * Read-only, already-merged data for the [MediaDetailsScreen] window. The caller applies the
  * provider/TMDB merge and builds image.tmdb.org URLs, so this window is source-agnostic and reused for
  * movie / series / episode.
  */
@@ -97,7 +99,7 @@ fun MediaDetailsScreen(details: MediaDetailsUi, onExit: () -> Unit, modifier: Mo
             else -> false
         }
     }
-    val page = tv.own.owntv.ui.theme.StageSurfaces.Background
+    val page = stageTone(tv.own.owntv.ui.theme.StageSurfaces.Background, LocalStagePalette.current.page) // Min TV dark + upstream light theme
     tv.own.owntv.ui.components.OwnTVPopup(onDismissRequest = onExit, stageLayout = true, stageScaled = false) {
         LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { (if (onPlay != null) playFocus else focus).requestFocus() } }
         Box(modifier.fillMaxSize().background(page).trapAllFocusExit()) {
@@ -184,7 +186,7 @@ private fun CastGrid(cast: List<tv.own.owntv.core.metadata.CastMember>) {
             Column(Modifier.width(132.mpx), horizontalAlignment = Alignment.CenterHorizontally) {
                 val photo = tv.own.owntv.core.metadata.MetadataImages.profile(member.profilePath)
                 Box(
-                    Modifier.size(112.mpx).clip(RoundedCornerShape(56.mpx)).background(Color.White.copy(alpha = 0.06f)),
+                    Modifier.size(112.mpx).clip(RoundedCornerShape(56.mpx)).background(StageColors.Ink.copy(alpha = 0.06f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (photo != null) {

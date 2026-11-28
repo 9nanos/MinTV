@@ -20,7 +20,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntSize
+import androidx.core.graphics.createBitmap
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -71,7 +73,7 @@ private object GradientTextures {
             Kind.VERTICAL -> LinearGradient(0f, 0f, 0f, h.toFloat(), colors, positions, Shader.TileMode.CLAMP)
             Kind.HORIZONTAL -> LinearGradient(0f, 0f, w.toFloat(), 0f, colors, positions, Shader.TileMode.CLAMP)
         }
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(w, h)
         Canvas(bitmap).drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { this.shader = shader })
         return bitmap
     }
@@ -154,29 +156,41 @@ fun DrawScope.drawVerticalFade(colors: List<Color>, startY: Float, endY: Float, 
 
 /**
  * Same pixels as `Modifier.background(Brush.verticalGradient(*stops))` — or `horizontalGradient` when
- * [vertical] is false — spanning the whole element, drawn from a cached image.
+ * [vertical] is false — spanning the whole element, drawn from a cached image. A horizontal wash runs
+ * from the reading start: right to left in Arabic, where the title it darkens for sits on the right.
  */
 fun Modifier.gradientWash(vertical: Boolean, vararg stops: Pair<Float, Color>): Modifier {
     val colors = stops.map { it.second }
     val positions = stops.map { it.first }
     val kind = if (vertical) GradientTextures.Kind.VERTICAL else GradientTextures.Kind.HORIZONTAL
     return drawWithCache {
-        val texture = GradientTextures.get(kind, colors, positions)
+        val texture = if (!vertical && layoutDirection == LayoutDirection.Rtl) {
+            GradientTextures.get(kind, colors.reversed(), positions.map { 1f - it }.reversed())
+        } else {
+            GradientTextures.get(kind, colors, positions)
+        }
         val dstSize = IntSize(ceil(size.width).toInt(), ceil(size.height).toInt())
         onDrawBehind { drawImage(image = texture, dstSize = dstSize) }
     }
 }
 
 /**
- * CSS `mask-image: linear-gradient(90deg, transparent, #000 <left>), linear-gradient(0deg, transparent,
+ * CSS `mask-image: linear-gradient(90deg, transparent, #000 <start>), linear-gradient(0deg, transparent,
  * #000 <bottom>)` with `mask-composite: intersect`: the element (a backdrop) dissolves into whatever is
- * behind it on its left and bottom edges instead of ending on a line. The two ramps are cached textures
+ * behind it on its start and bottom edges instead of ending on a line. The two ramps are cached textures
  * multiplied into the element's alpha in one offscreen layer.
+ *
+ * Start, not left: in Arabic the backdrop sits on the left with the title on the right, and a fade on
+ * its left left the picture ending on a hard line beside the title.
  */
-fun Modifier.dissolveEdges(left: Float, bottom: Float): Modifier = this
+fun Modifier.dissolveEdges(start: Float, bottom: Float): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithCache {
-        val across = GradientTextures.get(GradientTextures.Kind.HORIZONTAL, listOf(Color.Transparent, Color.Black), listOf(0f, left))
+        val across = if (layoutDirection == LayoutDirection.Rtl) {
+            GradientTextures.get(GradientTextures.Kind.HORIZONTAL, listOf(Color.Black, Color.Transparent), listOf(1f - start, 1f))
+        } else {
+            GradientTextures.get(GradientTextures.Kind.HORIZONTAL, listOf(Color.Transparent, Color.Black), listOf(0f, start))
+        }
         val down = GradientTextures.get(GradientTextures.Kind.VERTICAL, listOf(Color.Black, Color.Transparent), listOf(1f - bottom, 1f))
         val dstSize = IntSize(ceil(size.width).toInt(), ceil(size.height).toInt())
         onDrawWithContent {

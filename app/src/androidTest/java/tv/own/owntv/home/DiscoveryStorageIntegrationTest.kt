@@ -56,7 +56,7 @@ class DiscoveryStorageIntegrationTest {
             settings.setMetadataMode(MetadataMode.PROVIDER_PLUS_TMDB)
             TrendingScheduleStore(context).storeCandidates(TrendingScheduleStore.Candidates(
                 settings.metadataConfig().resolvedLanguage,System.currentTimeMillis(),emptyList(),emptyList(),1,1,1,1))
-            test(context,db,settings,CustomizationStore(context))
+            test(context,db,settings,CustomizationStore(context, org.koin.core.context.GlobalContext.get().get<tv.own.owntv.core.customize.CategoryLockView>()))
         } finally {db.close()}
     }
     @Test fun bundledDriverSupportsScopedRankingsOfflineResyncAndHiddenContent():Unit=runBlocking {
@@ -174,7 +174,7 @@ class DiscoveryStorageIntegrationTest {
             assertFalse(repo.folderAvailable(rows[0].folder!!,101,MetadataType.TV))
             assertEquals(503L,repo.shelf(101,listOf(101),MetadataType.TV).rows.single { it.kind==DiscoveryKind.PROVIDER }.folder!!.id)
             custom.renameCategory(101,MediaType.MOVIE,tv.own.owntv.core.customize.CustomizeKeys.category(oscar),"My awards")
-            custom.setCategoryOrder(101,MediaType.MOVIE,listOf(tv.own.owntv.core.customize.CustomizeKeys.category(oscar)))
+            custom.saveCategoryMove(101,MediaType.MOVIE,listOf(tv.own.owntv.core.customize.CustomizeKeys.category(oscar)),listOf(tv.own.owntv.core.customize.CustomizeKeys.category(oscar)))
             val reordered=repo.shelf(101,listOf(101),MetadataType.MOVIE).rows.filter { it.kind==DiscoveryKind.PROVIDER }
             assertEquals("My awards",reordered.first().folder!!.name)
             custom.setItemMovedFromOrigin(101,MediaType.MOVIE,"101:three",tv.own.owntv.core.customize.CustomizeKeys.category(top),true)

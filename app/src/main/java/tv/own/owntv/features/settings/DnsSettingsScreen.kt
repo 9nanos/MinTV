@@ -85,7 +85,7 @@ fun DnsSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val rowsFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { rowsFocus.requestFocus() } }
 
-    // P10B-14: the switch, then (while it is on) the presets, the server and Test DNS; the explanation in the panel.
+    // The switch, then (while it is on) the presets, the server and Test DNS; the explanation in the panel.
     val explanation = stringResource(R.string.settings_dns_explanation)
     val limits = stringResource(R.string.settings_dns_limitations)
     val notes: @Composable () -> Unit = {
@@ -133,7 +133,7 @@ fun DnsSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             val serverLabel = stringResource(R.string.settings_dns_server)
             StageFieldRow(
                 OwnTVIcon.PENCIL, serverLabel, server, { server = it },
-                SettingHelp(serverLabel, explanation, extra = notes),
+                help = SettingHelp(serverLabel, explanation, extra = notes),
                 placeholder = stringResource(R.string.settings_dns_server_hint),
                 onDone = { applySave() },
             )

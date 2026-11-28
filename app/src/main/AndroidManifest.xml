@@ -26,6 +26,13 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
+    <!-- Settings › App › Auto start. From Android 10 an app may open itself from the background only
+         with "Display over other apps"; OwnTV asks for it when an auto-start option is turned on and
+         draws nothing over other apps. RECEIVE_BOOT_COMPLETED merges in from :core. The wake listener
+         is a specialUse foreground service: no other type describes waiting for the screen to come on. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- TV-first app, but allow non-TV installs too: touchscreen optional, and leanback is NOT required
          (required=true blocked plain phones / non-TV armv7a boxes that don't report the leanback feature). -->
     <uses-feature
@@ -35,6 +42,9 @@
         android:name="android.software.leanback"
         android:required="false" />
 
+    <!-- Voice search hands the listening to the system's speech recogniser, so no microphone permission
+         is needed. From Android 11 the app can only see that recogniser if it names the action here;
+         without it Search would hide the microphone even where one exists. -->
     <!-- Android 11+ package visibility for explicit external TV shortcuts. -->
     <queries>
         <!-- Public Twitch channel handlers and a public TV-client filter; no private URI parameters. -->
@@ -58,6 +68,11 @@
         <package android:name="se.svt.android.svtplay" />
         <package android:name="se.telenor.stream" />
         <package android:name="com.android.vending" />
+
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    
     </queries>
 
     <application
@@ -72,8 +87,7 @@
         android:roundIcon="@mipmap/mintv_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.OwnTV"
-        android:usesCleartextTraffic="true"
-        tools:targetApi="26">
+        android:usesCleartextTraffic="true">
 
         <!-- Exposes the downloaded update APK to the system installer. -->
         <provider
@@ -102,14 +116,22 @@
              enabled. MainActivity is the default (Eggshell) and keeps its name, so an icon placed before this change still
              opens the app. Each carries its own icon, banner and launch-screen theme, and ALL intent
              filters: a disabled activity resolves nothing, so each variant's links always reach the enabled
-             one. LEANBACK_LAUNCHER shows it on TV launchers; LAUNCHER on phone/tablet/box home screens. -->
+             one. LEANBACK_LAUNCHER shows it on TV launchers; LAUNCHER on phone/tablet/box home screens.
+             configChanges: a remote waking up (keyboard/navigation), an HDR or frame-rate mode switch
+             (uiMode/colorMode/screen*) or a density change must not rebuild the Activity mid-film — that
+             closed the player and re-ran the startup popups. locale|layoutDirection are left out on
+             purpose: a script-family language switch still needs its one recreate (LocalizedContent).
+             supportsPictureInPicture: Settings › Video player › Picture-in-picture when leaving the app;
+             the window resizes the activity, which screenSize|smallestScreenSize|screenLayout keep alive. -->
         <activity
             android:name=".MainActivityPetrol"
             android:banner="${minTvBanner}"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -134,7 +156,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -159,7 +183,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -184,7 +210,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -209,7 +237,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -234,7 +264,9 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -259,7 +291,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -284,7 +318,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -310,7 +346,9 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/mintv_icon"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|density|colorMode"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:roundIcon="@mipmap/mintv_icon"
             android:theme="@style/Theme.MinTV.Starting"
             android:windowSoftInputMode="adjustPan">
@@ -330,6 +368,28 @@
         </activity>
 
         <receiver android:name=".features.update.UpdateInstallReceiver" android:exported="false" />
+        <!-- Auto start (AutoStart.kt). Both run in the bare :autostart process, where OwnTVApp starts
+             nothing, so the wake listener does not keep the whole app in memory. The receiver is
+             exported because these are system broadcasts; the service is not. -->
+        <receiver
+            android:name=".features.autostart.AutoStartReceiver"
+            android:process=":autostart"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".features.autostart.WakeListenerService"
+            android:process=":autostart"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Listens for the screen turning on so the app can open when the TV wakes from sleep, a setting the user turns on." />
+        </service>
+
     </application>
 
 </manifest>

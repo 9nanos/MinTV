@@ -1,13 +1,19 @@
 package tv.own.owntv.di
 
+import tv.own.owntv.features.sports.SportsPlayback
+import tv.own.owntv.features.pip.PictureInPicture
+import tv.own.owntv.features.sports.SportsSettingsViewModel
+import tv.own.owntv.features.sports.SportsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import tv.own.owntv.features.more.MoreCountsViewModel
 import tv.own.owntv.features.shell.RailCountsViewModel
 import org.koin.dsl.module
+import tv.own.owntv.features.categorylock.CategoryLockViewModel
 import tv.own.owntv.features.customize.CustomizeItemsViewModel
 import tv.own.owntv.features.customize.CustomizeViewModel
+import tv.own.owntv.features.settings.lock.SettingsPinViewModel
 import tv.own.owntv.features.downloads.DownloadsViewModel
 import tv.own.owntv.features.recordings.RecordingsViewModel
 import tv.own.owntv.features.epg.EpgViewModel
@@ -32,17 +38,21 @@ import tv.own.owntv.features.profiles.ProfileGateSessionViewModel
 import tv.own.owntv.features.profiles.ProfilesViewModel
 import tv.own.owntv.features.search.SearchViewModel
 import tv.own.owntv.features.series.SeriesViewModel
+import tv.own.owntv.features.settings.LocalAutoSyncViewModel
 import tv.own.owntv.features.settings.LocalSyncViewModel
 import tv.own.owntv.features.settings.BackupViewModel
+import tv.own.owntv.features.settings.ChannelNameCleanupViewModel
 import tv.own.owntv.features.settings.DeleteSubtitlesViewModel
 import tv.own.owntv.features.settings.EpgSourcesViewModel
 import tv.own.owntv.features.settings.HomeSettingsViewModel
 import tv.own.owntv.features.settings.LanguageSettingsViewModel
 import tv.own.owntv.features.settings.OpenSubtitlesViewModel
+import tv.own.owntv.features.settings.PlayerButtonsSettingsViewModel
 import tv.own.owntv.features.settings.SettingsViewModel
 import tv.own.owntv.features.setup.DisplaySizeViewModel
 import tv.own.owntv.features.setup.SetupViewModel
 import tv.own.owntv.features.shell.ShellViewModel
+import tv.own.owntv.features.subtitles.FolderSubtitleViewModel
 import tv.own.owntv.features.subtitles.SubtitleSearchViewModel
 
 /**
@@ -79,13 +89,21 @@ val appModule = module {
     singleOf(::PublicHockeySource)
     singleOf(::ShlChannelOverrides)
     singleOf(::TwitchStatus)
+    // Sports Hub: which match the playing channel came from. Lazy; nothing runs until it is asked.
+    singleOf(::SportsPlayback)
+    // Picture-in-picture when leaving the app: one instance shared by the activity and the shell.
+    singleOf(::PictureInPicture)
+    // Process-long scope for work that must outlive the screen that started it (a first-run restore).
+    single<kotlinx.coroutines.CoroutineScope> {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+    }
     viewModelOf(::HomeViewModel)
     viewModelOf(::SetupViewModel)
     viewModelOf(::DisplaySizeViewModel)
     // Takes a Context first; Koin resolves it from androidContext().
     //
     // Spelled out rather than `viewModelOf(::LiveViewModel)`: that reflective helper is generated for
-    // up to 22 constructor parameters and this class now has 24. The failure is a "none of the
+    // up to 22 constructor parameters and this class now has 25. The failure is a "none of the
     // following candidates is applicable" at the call above, which says nothing about arity — hence
     // this note. Every argument is resolved by type, so the order here does not matter.
     single { tv.own.owntv.features.home.HomeChannelDefaults(context = get(), db = get(), settings = get(), scheduler = get()) }
@@ -115,9 +133,14 @@ val appModule = module {
             get(),
             get(),
             get(),
+            get(),
+            get(),
         )
     }
     viewModelOf(::MovieViewModel)
+    viewModelOf(::SportsViewModel)
+    viewModelOf(::SportsSettingsViewModel)
+    viewModelOf(::PlayerButtonsSettingsViewModel)
     viewModelOf(::SeriesViewModel)
     viewModelOf(::SearchViewModel)
     viewModelOf(::ProfilesViewModel)
@@ -134,7 +157,6 @@ val appModule = module {
             sourceDao = get(),
             sourceRepository = get(),
             settings = get(),
-            epgDao = get(),
             importFinalizer = get(),
             channelDao = get(),
             categoryDao = get(),
@@ -156,30 +178,64 @@ val appModule = module {
             companion = get(),
             vodEngineStore = get(),
             forceMpvStore = get(),
-            archiveDecodeStore = get(),
             playbackPrefs = get(),
             connectionLimits = get(),
             player = get(),
             livePreview = get(),
             enginePool = get(),
             importer = get(),
+            sourceEditor = get(),
         )
     }
     viewModelOf(::LocalSyncViewModel)
+    viewModelOf(::LocalAutoSyncViewModel)
     viewModelOf(::HomeSettingsViewModel)
     viewModelOf(::LanguageSettingsViewModel)
     viewModelOf(::OpenSubtitlesViewModel)
     viewModelOf(::DeleteSubtitlesViewModel)
     viewModelOf(::SubtitleSearchViewModel)
+    viewModelOf(::FolderSubtitleViewModel)
     viewModelOf(::DownloadsViewModel)
     viewModelOf(::RecordingsViewModel)
-    viewModelOf(::EpgViewModel)
+    // 24 constructor parameters — spelled out like LiveViewModel, at the edge of what viewModelOf generates.
+    viewModel {
+        EpgViewModel(
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+        )
+    }
     viewModelOf(::CustomizeViewModel)
+    viewModelOf(::SettingsPinViewModel)
     viewModelOf(::CustomizeItemsViewModel)
     viewModelOf(::BackupViewModel)
     viewModelOf(::EpgSourcesViewModel)
+    viewModelOf(::ChannelNameCleanupViewModel)
     // The counts the More rows and the Favourites / History tabs carry.
     viewModelOf(::MoreCountsViewModel)
     // The counts beside the sections in the open Stage rail.
     viewModelOf(::RailCountsViewModel)
+    viewModelOf(::CategoryLockViewModel)
+    single { tv.own.owntv.features.settings.lock.MenuChangeGate(get()) }
 }
