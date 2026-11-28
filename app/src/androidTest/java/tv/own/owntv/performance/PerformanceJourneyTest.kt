@@ -282,8 +282,10 @@ class PerformanceJourneyTest {
                     check(channelEntry == 0 || channelEntry == 3) {
                         // Diagnostics: where focus is and what Sport shows, in the log itself.
                         val focused = runCatching { compose.onNode(isFocused()).printToString() }.getOrDefault("no focused node")
-                        "Unexpected synthetic Sport entry: $channelEntry\nFOCUSED: $focused\nTREE:\n" +
-                            runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 12) }.getOrDefault("").take(12_000)
+                        // The runner prints only the end of the message: the focused node goes last.
+                        "Unexpected synthetic Sport entry: $channelEntry\nTREE:\n" +
+                            runCatching { compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 6) }.getOrDefault("").take(4_000) +
+                            "\nFOCUSED: $focused"
                     }
                     if (channelEntry != 3) repeat(3) { press(KeyEvent.KEYCODE_DPAD_RIGHT) }
                     hockeyCard(hockeyLabels[3]).assertIsFocused()
