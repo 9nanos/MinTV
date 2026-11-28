@@ -20,7 +20,10 @@ internal fun nativeRowTarget(rows: List<NativeRow>, key: String?, vertical: Int,
 private class CommittedRowsFocus(var keys: Set<String>, var selected: String?, var owned: Boolean)
 
 internal class NativeRowsNavigation(val list: LazyListState, val rails: Map<String, LazyListState>,
-    val modifier: Modifier, val item: (String) -> Modifier)
+    val modifier: Modifier,
+    /** Moves to the first card through the same owner as every remote press (scroll, pending, column). */
+    val enterFirst: () -> Boolean,
+    val item: (String) -> Modifier)
 
 /** Shared native focus owner for Sport/VOD: stable keys, no nearest-rectangle cross-row jumps. */
 @Composable
@@ -121,7 +124,10 @@ internal fun rememberNativeRowsNavigation(rows: List<NativeRow>, profile: Long?,
             true
         }
     }
-    return NativeRowsNavigation(list, rails, modifier) { id ->
+    val enterFirst: () -> Boolean = {
+        currentRows.firstOrNull { it.keys.isNotEmpty() }?.keys?.firstOrNull()?.let { column = 0; move(it) } ?: false
+    }
+    return NativeRowsNavigation(list, rails, modifier, enterFirst) { id ->
         val requester = if (id == firstKey) first else targets.getOrPut(id) { FocusRequester() }
         targets[id] = requester
         Modifier.focusRequester(requester).onFocusChanged { if (it.isFocused) {

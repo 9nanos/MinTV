@@ -104,11 +104,12 @@ internal fun NativeSportDashboard(data: NativeSportSnapshot, actions: NativeSpor
     // v0.20: header entry (only) lands on the first live sports channel; returns restore exactly.
     val hasLive = live.isNotEmpty()
     val currentHasLive by rememberUpdatedState(hasLive)
-    DisposableEffect(first, onLiveEntry) {
-        onLiveEntry { currentHasLive && first.requestSafely() }
+    val nav = rememberNativeRowsNavigation(rows, data.profile, first, onEntry, onHeader)
+    val currentNav by rememberUpdatedState(nav)
+    DisposableEffect(onLiveEntry) {
+        onLiveEntry { currentHasLive && currentNav.enterFirst() }
         onDispose { onLiveEntry(null) }
     }
-    val nav = rememberNativeRowsNavigation(rows, data.profile, first, onEntry, onHeader)
     BoxWithConstraints(modifier.fillMaxSize().background(DesignLabBackground)) {
         val width = (maxWidth - 128.mpx - 54.mpx) / 4
         LazyColumn(state = nav.list, contentPadding = PaddingValues(horizontal = 64.mpx, vertical = 28.mpx),
