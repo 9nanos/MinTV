@@ -19,7 +19,8 @@ val minTvMetadataModule = module {
     // 0.20 one Sport: the upstream Sports section reads SHL and HockeyAllsvenskan from Min TV's Swedish
     // hockey reader; ESPN keeps every other league. Overrides Core's ESPN-only binding (loaded first).
     single<tv.own.owntv.core.sports.SportsSource> {
-        tv.own.owntv.features.sports.SwedishHockeySource(tv.own.owntv.core.sports.EspnSportsSource(get()), get(),
+        tv.own.owntv.features.sports.SwedishHockeySource(tv.own.owntv.core.sports.EspnSportsSource(get()),
+            get<tv.own.owntv.features.home.SportsRepository>(),
             androidContext().getString(tv.own.owntv.R.string.mintv_hockey_final),
             { home, away -> androidContext().getString(tv.own.owntv.R.string.hub_pair, home, away) })
     }
