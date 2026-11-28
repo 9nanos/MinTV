@@ -52,7 +52,8 @@ internal fun tableColumns(sport: Sport?, leagueKey: String?): List<StandingsColu
         StandingsColumn.LOST, StandingsColumn.DIFFERENCE, StandingsColumn.POINTS)
     else StandingsColumn.of(sport)
 
-private val SwedishTableLeagues = setOf("hockey/" + SwedishHockeySource.SHL_SLUG, "hockey/" + SwedishHockeySource.ALLSVENSKAN_SLUG)
+private val SwedishTableLeagues = setOf(SwedishHockeySource.SHL_SLUG, SwedishHockeySource.ALLSVENSKAN_SLUG)
+    .map { tv.own.owntv.core.sports.model.League.keyOf(Sport.HOCKEY, it) }.toSet()
 
 /** `# Team` and [sport]'s own columns (football: `P W D L GD Pts`), 16.5 px dim. */
 @Composable
