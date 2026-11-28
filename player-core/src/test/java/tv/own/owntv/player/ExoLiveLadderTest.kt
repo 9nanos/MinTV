@@ -99,11 +99,17 @@ class ExoLiveLadderTest {
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
-    /** Moves the clock in small steps until [done], failing after [limitMs] of player time. */
-    private fun runUntil(limitMs: Long, done: () -> Boolean) {
+    /**
+     * Moves the clock in small steps until [done], failing after [limitMs] of player time — and, since
+     * ExoPlayer's loader reads the local server on real threads, not before [minWallMs] of real time:
+     * a busy CI runner otherwise spends the whole player-time budget in well under a second.
+     */
+    private fun runUntil(limitMs: Long, minWallMs: Long = 5_000, done: () -> Boolean) {
         var spent = 0L
+        val started = System.nanoTime()
         while (!done()) {
-            check(spent < limitMs) { "not reached after ${spent}ms: state=${engine.state.value} error=${engine.error.value}" }
+            val wallMs = (System.nanoTime() - started) / 1_000_000
+            check(spent < limitMs || wallMs < minWallMs) { "not reached after ${spent}ms (${wallMs}ms real): state=${engine.state.value} error=${engine.error.value}" }
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20))
             Thread.sleep(1)
             spent += 20
